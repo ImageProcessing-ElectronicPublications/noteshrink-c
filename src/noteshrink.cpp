@@ -234,7 +234,7 @@ static void KMeans(std::vector<NSHRgb> const& data, int k, int maxItr, std::vect
 
     for (int i = 0; i < k; i++)
     {
-        float h = float(i) / float(k - 1);
+        float h = (float(i) + 0.5f) / float(k);
         NSHRgb p = HsvToRgb(h, 1, 1);
         float minval = 196608.0f;
         int k = 0;
@@ -329,7 +329,7 @@ static void PaletteCreate(std::vector<NSHRgb> const& samples, NSHRgb bgColor, NS
     }
 }
 
-static void PaletteApply(std::vector<NSHRgb>& img, std::vector<NSHRgb>& palette, NSHRgb origBgColor, NSHRgb bgColor, NSHOption option, std::vector<NSHRgb>& result, int width, int height)
+static void PaletteApply(std::vector<NSHRgb>& img, std::vector<NSHRgb>& palette, NSHRgb origBgColor, NSHRgb bgColor, NSHOption option, std::vector<uint8_t>& result, int width, int height)
 {
     std::vector<bool> fgMask;
     CreateForegroundMask(origBgColor, img, option, fgMask);
@@ -358,18 +358,18 @@ static void PaletteApply(std::vector<NSHRgb>& img, std::vector<NSHRgb>& palette,
     {
         if (!fgMask[i])
         {
-            result.push_back(bgColor);
+            result.push_back(0);
             continue;
         }
         NSHRgb p = img[i];
         int minIdx = Closest(p, palette);
         if (minIdx == 0)
         {
-            result.push_back(bgColor);
+            result.push_back(0);
         }
         else
         {
-            result.push_back(palette[minIdx]);
+            result.push_back(minIdx);
         }
     }
 }
@@ -472,13 +472,13 @@ extern "C" NSHOption NSHMakeDefaultOption()
     return o;
 }
 
-extern "C" bool NSHCreatePalette(std::vector<NSHRgb>& input, size_t inputSize, NSHOption option, NSHRgb* palette, size_t paletteSize, std::vector<NSHRgb>& result, int width, int height)
+extern "C" bool NSHCreatePalette(std::vector<NSHRgb>& input, size_t inputSize, NSHOption option, std::vector<NSHRgb>& palette, std::vector<uint8_t>& result, int width, int height)
 {
-    if (input.empty() || !palette)
+    if (input.empty() || palette.empty())
     {
         return false;
     }
-    if (paletteSize < 2)
+    if (option.NumColors < 2)
     {
         return false;
     }
@@ -486,26 +486,26 @@ extern "C" bool NSHCreatePalette(std::vector<NSHRgb>& input, size_t inputSize, N
     std::vector<NSHRgb> samples;
     SamplePixels(input.data(), inputSize, option, samples);
     NSHRgb origBgColor = FindBackgroundColor(samples, bitsPerSample);
-    std::vector<NSHRgb> pal(paletteSize);
-    std::vector<NSHRgb> resultPal(paletteSize);
+    std::vector<NSHRgb> pal(option.NumColors);
+    std::vector<NSHRgb> resultPal(option.NumColors);
     PaletteCreate(samples, origBgColor, option, pal);
     NSHRgb bgColor = origBgColor;
-    if (option.Saturate)
-    {
-        PaletteSaturate(pal, resultPal);
-    }
-    else
-    {
-        for (int k = 0; k < resultPal.size(); k++)
-        {
-            resultPal[k] = pal[k];
-        }
-    }
     if (option.WhiteBackground)
     {
         bgColor = NSHRgb{ 255, 255, 255 };
     }
-    PaletteApply(input, resultPal, origBgColor, bgColor, option, result, width, height);
+    PaletteApply(input, pal, origBgColor, bgColor, option, result, width, height);
+    if (option.Saturate)
+    {
+        PaletteSaturate(pal, palette);
+    }
+    else
+    {
+        for (int k = 0; k < palette.size(); k++)
+        {
+            palette[k] = pal[k];
+        }
+    }
 
     return true;
 }

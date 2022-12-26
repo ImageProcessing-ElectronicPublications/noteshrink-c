@@ -29,7 +29,7 @@ typedef struct {
 
 extern NSHOption NSHMakeDefaultOption();
 
-extern bool NSHCreatePalette(std::vector<NSHRgb>& input, size_t inputSize, NSHOption option, NSHRgb* palette, size_t paletteSize, std::vector<NSHRgb>& result, int width, int height);
+extern bool NSHCreatePalette(std::vector<NSHRgb>& input, size_t inputSize, NSHOption option, std::vector<NSHRgb>& palette, std::vector<uint8_t>& result, int width, int height);
 
 #ifdef __cplusplus
 } // extern "C"

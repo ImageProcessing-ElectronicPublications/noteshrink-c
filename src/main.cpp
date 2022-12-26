@@ -13,6 +13,7 @@ void NoteshrinkUsage(char* prog, NSHOption o)
     printf("  -k NUM_ITERS      number of iterations KMeans (default %d)\n", o.KmeansMaxIter);
     printf("  -n NUM_COLORS     number of output colors (default %d)\n", o.NumColors);
     printf("  -p NUM            part of pixels to sample (default %f)\n", o.SampleFraction);
+    printf("  -q                quiet mode\n");
     printf("  -s NUM            background saturation threshold (default %f)\n", o.SaturationThreshold);
     printf("  -v NUM            background value threshold (default %f)\n", o.BrightnessThreshold);
     printf("  -w                make background white (default %d)\n", o.WhiteBackground);
@@ -31,8 +32,9 @@ int main(int argc, char **argv)
     }
     else
     {
+        int fquiet;
         int opt;
-        while ((opt = getopt(argc, argv, ":k:n:p:s:v:wSh")) != -1)
+        while ((opt = getopt(argc, argv, ":k:n:p:qs:v:wSh")) != -1)
         {
             switch(opt)
             {
@@ -44,6 +46,9 @@ int main(int argc, char **argv)
                 break;
             case 'p':
                 o.SampleFraction = atof(optarg);
+                break;
+            case 'q':
+                fquiet = 1;
                 break;
             case 's':
                 o.SaturationThreshold = atof(optarg);
@@ -96,11 +101,19 @@ int main(int argc, char **argv)
         free(pixels);
 
         std::vector<NSHRgb> palette(o.NumColors);
-        std::vector<NSHRgb> result;
-        NSHCreatePalette(img, img.size(), o, palette.data(), palette.size(), result, width, height);
-        std::vector<NSHRgb> temVector;
-        int numberOfChannels = 3;
+        std::vector<uint8_t> result;
+        NSHCreatePalette(img, img.size(), o, palette, result, width, height);
+        if (!fquiet)
+        {
+            printf("Palette:\n");
+            for (i = 0; i < o.NumColors; i++)
+            {
+                uint8_t r = (uint8_t)palette[i].R, g = (uint8_t)palette[i].G,  b = (uint8_t)palette[i].B;
+                printf("%d: #%02x%02x%02x\n", i, r, g, b);
+            }
+        }
 
+        int numberOfChannels = 3;
         uint8_t* data = new uint8_t[width * height * numberOfChannels];
         uint8_t* datafg = new uint8_t[width * height * numberOfChannels];
 
@@ -111,14 +124,17 @@ int main(int argc, char **argv)
             for (int x = 0; x < width; x++)
             {
                 size_t idx = (height - y - 1) * width * numberOfChannels + x * numberOfChannels;
-                NSHRgb p = result[i++];
+                NSHRgb p = palette[result[i++]];
                 data[idx] = (uint8_t)p.R;
                 data[idx + 1] = (uint8_t)p.G;
                 data[idx + 2] = (uint8_t)p.B;
             }
         }
-        printf("done");
         stbi_write_png(fileout.c_str(), width, height, numberOfChannels, data, width * numberOfChannels);
+        if (!fquiet)
+        {
+            printf("done");
+        }
     }
     return 0;
 }
