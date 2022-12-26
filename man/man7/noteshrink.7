@@ -1,0 +1,233 @@
+.TH "NoteShrink" 7 1.1 "26 Dec 2022" "Development Manual"
+
+.SH Process and color image fundamentals
+
+.PP
+Here are the steps required to produce the compact, clean image:
+
+.TP
+1
+Identify the background color of the original scanned image.
+
+.TP
+2
+Isolate the foreground by thresholding on difference from background
+color.
+
+.TP
+3
+Convert to an indexed color PNG by choosing a small number of
+“representative colors” from the foreground.
+
+.PP
+Before we delve into each one of these steps, it might be useful
+to recap how color images are stored digitally. Because humans have
+three different types of color-sensitive cells in their eyes, we can
+reconstruct any color by combining various intensities of red, green,
+and blue light.4 The resulting system equates colors with 3D points in
+the RGB colorspace.
+
+.PP
+Although a true vector space would allow an infinite number of
+continuously varying pixel intensities, we need to discretize colors in
+order to store them digitally – typically assigning 8 bits each to the
+red, green, and blue channels. Nevertheless, considering colors in an
+image analogously to points in a continuous 3D space provides powerful
+tools for analysis, as we shall see when we step through the process
+outlined above.
+
+.SH Identifying the background color
+
+.PP
+Since the majority of the page is free from ink or lines, we might expect
+the paper color to be the one that appears most frequently in the scanned
+image – and if the scanner always represented every bit of unmarked
+white paper as the same RGB triplet, we would have no problems picking
+it out. Regrettably, this is not the case; random variations in color
+appear due to dust specks and smudges on the glass, color variations of
+the page itself, sensor noise, etc. So in reality, the “page color”
+can spread across thousands of distinct RGB values.
+
+.PP
+The original scanned image is 2,081 x 2,531, with a total area of
+5,267,011 pixels. Although we could consider each individual pixel, it’s
+much faster to work on a representative sample of the input image. The
+noteshrink.py program samples 5% of the input image by default (more than
+sufficient for scans at 300 DPI), but for now, let’s look at an even
+smaller subset of 10,000 pixels chosen at random from the original scan.
+
+.PP
+Although it bears scant resemblance to the actual scanned page –
+there’s no text to be found – the distribution of colors in the
+two images is pretty much identical. Both are mostly grayish-white,
+with a handful of red, blue, and dark gray pixels. Here are the same
+10,000 pixels, sorted by brightness (e.g. the sum of their R, G, and
+B intensities).
+
+.PP
+Viewed from afar, the bottom 80-90% of the image all seems to be the same
+color; however, closer inspection reveals quite a bit of variation. In
+fact, the most frequent color in the image above, with RGB value (240,
+240, 242), accounts for just 226 of the 10,000 samples – less than 3%
+of the total number of pixels.
+
+.PP
+Because the mode here accounts for such a small percentage of the sample,
+we should question how reliably it describes the distribution of colors
+in the image. We’ll have a better chance of identifying a prevalent
+page color if we first reduce the bit depth of the image before finding
+the mode. Here’s what things look like when we move from 8 bits per
+channel to 4 by zeroing out the four least significant bits.
+
+.PP
+Now the most frequently occurring color has RGB value (224, 224, 224), and
+accounts for 3,623 (36%) of the sampled pixels. Essentially, by reducing
+the bit depth, we are grouping similar pixels into larger “bins”,
+which makes it easier to find a strong peak in the data.6
+
+.PP
+There’s a tradeoff here between reliability and precision: small
+bins enable finer distinctions of color, but bigger bins are much
+more robust. In the end, I went with 6 bits per channel to identify
+the background color, which seemed like a good sweet spot between the
+two extremes.
+
+.SH Isolating the foreground
+
+.PP
+Once we have identified the background color, we can threshold the image
+according to how similar each pixel in the image is to it. One natural
+way to calculate the similarity of two colors is to compute the Euclidean
+distance of their coordinates in RGB space; however, this simple method
+fails to properly segment the colors shown below:
+
+.PP
+  white | gray | black | red | pink
+
+.PP
+Here’s a table specifying the colors and their Euclidean distances
+from the background color:
+
+.PP
+  Color   Where found                     R     G     B   Dist. from BG
+  ------|-----------------------------|-----|-----|-----|--------------
+  white   background                    238   238   242               —
+  gray    bleed-through from back       160   168   166           129.4
+  black   ink on front of page           71    73    71           290.4
+  red     ink on front of page          219    83    86           220.7
+  pink    vertical line at left margin  243   179   182            84.3
+
+.PP
+As you can see, the dark gray bleed-through that we would like to classify
+as background is actually further away from the white page color than the
+pink line color which we hope to classify as foreground. Any threshold
+on Euclidean distance that marks pink as foreground would necessarily
+also have to include the bleed-through.
+
+.PP
+We can get around this issue by moving from RGB space to
+Hue-Saturation-Value (HSV) space, which deforms the RGB cube into the
+cylindrical shape illustrated in this cutaway view.
+
+.PP
+The HSV cylinder features a rainbow of colors distributed circularly about
+its outside top edge; hue refers to the angle along this circle. The
+central axis of the cylinder ranges from black at the bottom to white
+at the top, with gray shades in between – this entire axis has zero
+saturation, or intensity of color, and the vivid hues on the outside
+circumference all have a saturation of 1.0. Finally, value refers to
+the overall brightness of the color, ranging from black at the bottom
+to bright shades at the top.
+
+.PP
+So now let’s reconsider our colors above, this time in terms of value
+and saturation:
+.PP
+  Color   Value   Saturation   Value diff. from BG   Sat. diff from BG
+  ------|-------|------------|---------------------|------------------
+  white   0.949       0.017                      —                   —
+  gray    0.659       0.048                  0.290               0.031
+  black   0.286       0.027                  0.663               0.011
+  red     0.859       0.621                  0.090               0.604
+  pink    0.953       0.263                  0.004               0.247
+
+.PP
+As you might expect, white, black, and gray vary significantly in
+value, but share similarly low saturation levels – well below either
+red or pink. With the additional information provided by HSV, we can
+successfully mark a pixel as belonging to the foreground if either one
+of these criteria holds:
+
+.TP
+*
+the value differs by more than 0.3 from the background color, or
+.TP
+*
+the saturation differs by more than 0.2 from the background color
+
+.PP
+The former criterion pulls in the black pen marks, whereas the latter
+pulls in the red ink as well as the pink line. Both criteria successfully
+exclude the gray bleed-through from the foreground. Different images may
+require different saturation/value thresholds; see the results section
+for details.
+
+.SH Choosing a set of representative colors
+
+.PP
+Once we isolate the foreground, we are left with a new set of colors
+corresponding to the marks on the page. Let’s visualize the set –
+but this time, instead of considering colors as a collection of pixels,
+we will consider them as 3D points in the RGB colorspace. The resulting
+scatterplot ends up looking quite “clumpy”, with several bands of
+related colors.
+
+.PP
+Our goal now is to convert the original 24 bit-per-pixel image into an
+indexed color image by choosing a small number (8, in this example)
+of colors to represent the whole image. This has two effects: first,
+it reduces the file size because specifying a color now requires only
+3 bits (since 8=2**3). Furthermore, it makes the resulting image more
+visually cohesive because similarly colored ink marks are likely to be
+assigned the same color in the final output image.
+
+.PP
+To accomplish this goal we will use a data-driven method that exploits the
+“clumpy” nature of the diagram above. Choosing colors that correspond
+to the centers of clusters will lead to a set of colors that accurately
+represents the underlying data. In technical terms, we’ll be solving
+a color quantization problem (which is itself just a special case of
+vector quantization), through the use of cluster analysis.
+
+.PP
+The particular methodological tool for the job that I picked is k-means
+clustering. Its overall goal is to find a set of means or centers
+which minimizes the average distance from each point to the nearest
+center. Here’s what you get when you use it to pick out seven different
+clusters on the dataset.
+
+.PP
+In this diagram, the points with black outlines represent foreground
+color samples, and the colored lines connect them to their closest center
+in the RGB colorspace. When the image is converted to indexed color,
+each foreground sample will get replaced with the color of the closest
+center. Finally, the circular outlines indicate the distance from each
+center its furthest associated sample.
+
+.SH Whistles and bells
+
+Aside from being able to set the value and saturation thresholds,
+the noteshrink.py program has several other notable features. By
+default, it increases the vividness and contrast of the final palette
+by rescaling the minimum and maximum intensity values to 0 and 255,
+respectively.
+
+.PP
+There is also an option to force the background color to white after
+isolating the foreground colors.
+
+.SH SEE ALSO
+noteshrink(1)
+
+.SH CONTACTS
+Website: https://mzucker.github.io/2016/09/20/noteshrink.html

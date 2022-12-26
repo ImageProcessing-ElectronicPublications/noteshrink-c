@@ -1,0 +1,50 @@
+.TH "NoteShrink" 1 1.1 "26 Dec 2022" "User Manual"
+
+.SH NAME
+noteshrink
+
+.SH DESCRIPTION
+Convert scans of handwritten notes to beautiful. 
+
+.SH SYNOPSIS
+noteshrink [options] image_im image_out
+
+.SH OPTIONS
+.TP
+-k NUM_ITERS
+number of iterations KMeans (default 40)
+.TP
+-n NUM_COLORS
+number of output colors (default 6)
+.TP
+-p NUM
+part of pixels to sample (default 0.050000)
+.TP
+-s NUM
+background saturation threshold (default 0.200000)
+.TP
+-v NUM
+background value threshold (default 0.250000)
+.TP
+-w
+make background white (default 0)
+.TP
+-S
+on/off saturate colors (default 0)
+.TP
+-h
+show this help message and exit
+
+.SH EXAMPLE
+noteshrink test.jpg testout.png
+
+.SH COPYRIGHT
+  Copyright (c) 2016, Matt Zucker
+  Copyright (c) 2018, 2021 kbinani
+  All rights reserved.
+
+.SH SEE ALSO
+noteshrink(7), pngcrush(1), optipng(1), advpng(1)
+
+.SH CONTACTS
+Website: https://github.com/ImageProcessing-ElectronicPublications/noteshrink-c
