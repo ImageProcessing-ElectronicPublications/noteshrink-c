@@ -15,7 +15,6 @@ typedef struct {
     float B;
 } NSHRgb;
 
-
 typedef struct {
     float SampleFraction;
     float BrightnessThreshold;
@@ -23,13 +22,19 @@ typedef struct {
     int KmeansMaxIter;
     int NumColors = 6;
     bool Saturate;
+    bool Norm;
     bool WhiteBackground;
 } NSHOption;
 
-
 extern NSHOption NSHMakeDefaultOption();
 
-extern bool NSHCreatePalette(std::vector<NSHRgb>& input, size_t inputSize, NSHOption option, std::vector<NSHRgb>& palette, std::vector<uint8_t>& result, int width, int height);
+extern bool NSHPaletteCreate(std::vector<NSHRgb>& input, size_t inputSize, NSHOption option, std::vector<NSHRgb>& palette);
+
+extern bool NSHPaletteApply(std::vector<NSHRgb>& img, std::vector<NSHRgb>& palette, NSHOption option, std::vector<uint8_t>& result, int width, int height);
+
+extern bool NSHPaletteSaturate(std::vector<NSHRgb>& palette);
+
+extern bool NSHPaletteNorm(std::vector<NSHRgb>& palette);
 
 #ifdef __cplusplus
 } // extern "C"

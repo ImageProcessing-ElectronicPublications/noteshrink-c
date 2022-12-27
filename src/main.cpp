@@ -17,12 +17,15 @@ void NoteshrinkUsage(char* prog, NSHOption o)
     printf("  -s NUM            background saturation threshold (default %f)\n", o.SaturationThreshold);
     printf("  -v NUM            background value threshold (default %f)\n", o.BrightnessThreshold);
     printf("  -w                make background white (default %d)\n", o.WhiteBackground);
-    printf("  -S                do not saturate colors (default %d)\n", o.Saturate);
+    printf("  -N                on/off normalize colors (default %d)\n", o.Norm);
+    printf("  -S                on/off saturate colors (default %d)\n", o.Saturate);
     printf("  -h                show this help message and exit\n");
 }
 
 int main(int argc, char **argv)
 {
+    int MinInt = 2;
+    float MinFloat = 0.001;
     NSHOption o = NSHMakeDefaultOption();
     int fhelp = 0;
     if (argc < 3)
@@ -34,27 +37,52 @@ int main(int argc, char **argv)
     {
         int fquiet;
         int opt;
-        while ((opt = getopt(argc, argv, ":k:n:p:qs:v:wSh")) != -1)
+        while ((opt = getopt(argc, argv, ":k:n:p:qs:v:wNSh")) != -1)
         {
             switch(opt)
             {
             case 'k':
                 o.KmeansMaxIter = atoi(optarg);
+                if (o.KmeansMaxIter < MinInt)
+                {
+                    printf("ERROR: NUM_ITERS = %d < %d", o.KmeansMaxIter, MinInt);
+                    return 1;
+                }
                 break;
             case 'n':
                 o.NumColors = atoi(optarg);
+                if (o.NumColors < MinInt)
+                {
+                    printf("ERROR: NUM_COLORS = %d < %d", o.NumColors, MinInt);
+                    return 1;
+                }
                 break;
             case 'p':
                 o.SampleFraction = atof(optarg);
+                if (o.SampleFraction < MinFloat)
+                {
+                    printf("ERROR: p NUM = %f < %f", o.SampleFraction, MinFloat);
+                    return 1;
+                }
                 break;
             case 'q':
                 fquiet = 1;
                 break;
             case 's':
                 o.SaturationThreshold = atof(optarg);
+                if (o.SaturationThreshold < MinFloat)
+                {
+                    printf("ERROR: s NUM = %f < %f", o.SaturationThreshold, MinFloat);
+                    return 1;
+                }
                 break;
             case 'v':
                 o.BrightnessThreshold = atof(optarg);
+                if (o.BrightnessThreshold < MinFloat)
+                {
+                    printf("ERROR: v NUM = %f < %f", o.BrightnessThreshold, MinFloat);
+                    return 1;
+                }
                 break;
             case 'w':
                 o.WhiteBackground = !o.WhiteBackground;
@@ -62,14 +90,19 @@ int main(int argc, char **argv)
             case 'S':
                 o.Saturate = !o.Saturate;
                 break;
+            case 'N':
+                o.Norm = !o.Norm;
+                break;
             case 'h':
                 fhelp = 1;
                 break;
             case ':':
                 printf("option needs a value\n");
+                return 2;
                 break;
             case '?':
                 printf("unknown option: %c\n", optopt);
+                return 3;
                 break;
             }
         }
@@ -102,7 +135,20 @@ int main(int argc, char **argv)
 
         std::vector<NSHRgb> palette(o.NumColors);
         std::vector<uint8_t> result;
-        NSHCreatePalette(img, img.size(), o, palette, result, width, height);
+        NSHPaletteCreate(img, img.size(), o, palette);
+        NSHPaletteApply(img, palette, o, result, width, height);
+        if (o.Saturate)
+        {
+            NSHPaletteSaturate(palette);
+        }
+        if (o.Norm)
+        {
+            NSHPaletteNorm(palette);
+        }
+        if (o.WhiteBackground)
+        {
+            palette[0] = NSHRgb{ 255, 255, 255 };
+        }
         if (!fquiet)
         {
             printf("Palette:\n");
@@ -133,7 +179,7 @@ int main(int argc, char **argv)
         stbi_write_png(fileout.c_str(), width, height, numberOfChannels, data, width * numberOfChannels);
         if (!fquiet)
         {
-            printf("done");
+            printf("done\n");
         }
     }
     return 0;

@@ -237,16 +237,7 @@ static void KMeans(std::vector<NSHRgb> const& data, int k, int maxItr, std::vect
         float h = (float(i) + 0.5f) / float(k);
         NSHRgb p = HsvToRgb(h, 1, 1);
         float minval = 196608.0f;
-        int k = 0;
-        for (int j = 0; j < data.size(); j++)
-        {
-            float dist = SquareDistance(p, data[j]);
-            if (dist < minval)
-            {
-                minval = dist;
-                k = j;
-            }
-        }
+        int k = Closest(p, data);
         means.push_back(data[k]);
     }
 
@@ -299,7 +290,7 @@ static void KMeans(std::vector<NSHRgb> const& data, int k, int maxItr, std::vect
     }
 }
 
-static void PaletteCreate(std::vector<NSHRgb> const& samples, NSHRgb bgColor, NSHOption option, std::vector<NSHRgb>& outPalette)
+static void PaletteGenerate(std::vector<NSHRgb> const& samples, NSHRgb bgColor, NSHOption option, std::vector<NSHRgb>& outPalette)
 {
     std::vector<bool> fgMask;
     CreateForegroundMask(bgColor, samples, option, fgMask);
@@ -329,10 +320,44 @@ static void PaletteCreate(std::vector<NSHRgb> const& samples, NSHRgb bgColor, NS
     }
 }
 
-static void PaletteApply(std::vector<NSHRgb>& img, std::vector<NSHRgb>& palette, NSHRgb origBgColor, NSHRgb bgColor, NSHOption option, std::vector<uint8_t>& result, int width, int height)
+extern "C" NSHOption NSHMakeDefaultOption()
+{
+    NSHOption o;
+    o.SampleFraction = 0.05f;
+    o.BrightnessThreshold = 0.25f;
+    o.SaturationThreshold = 0.20f;
+    o.KmeansMaxIter = 40;
+    o.Saturate = false;
+    o.Norm = false;
+    o.WhiteBackground = false;
+    o.NumColors = 6;
+    return o;
+}
+
+extern "C" bool NSHPaletteCreate(std::vector<NSHRgb>& input, size_t inputSize, NSHOption option, std::vector<NSHRgb>& palette)
+{
+    if (input.empty() || palette.empty())
+    {
+        return false;
+    }
+    if (option.NumColors < 2)
+    {
+        return false;
+    }
+
+    std::vector<NSHRgb> samples;
+    SamplePixels(input.data(), inputSize, option, samples);
+    NSHRgb bgColor = FindBackgroundColor(samples, bitsPerSample);
+    PaletteGenerate(samples, bgColor, option, palette);
+
+    return true;
+}
+
+extern "C" bool NSHPaletteApply(std::vector<NSHRgb>& img, std::vector<NSHRgb>& palette, NSHOption option, std::vector<uint8_t>& result, int width, int height)
 {
     std::vector<bool> fgMask;
-    CreateForegroundMask(origBgColor, img, option, fgMask);
+    NSHRgb bgColor = palette[0];
+    CreateForegroundMask(bgColor, img, option, fgMask);
     // Despeckle 3x3
     int k = width + 1;
     for (int y = 1; y < height - 1; y++)
@@ -359,25 +384,21 @@ static void PaletteApply(std::vector<NSHRgb>& img, std::vector<NSHRgb>& palette,
         if (!fgMask[i])
         {
             result.push_back(0);
-            continue;
-        }
-        NSHRgb p = img[i];
-        int minIdx = Closest(p, palette);
-        if (minIdx == 0)
-        {
-            result.push_back(0);
         }
         else
         {
+            NSHRgb p = img[i];
+            int minIdx = Closest(p, palette);
             result.push_back(minIdx);
         }
     }
+
+    return true;
 }
 
-static void PaletteSaturate(std::vector<NSHRgb>& palette, std::vector<NSHRgb>& resultPalette)
+extern "C" bool NSHPaletteSaturate(std::vector<NSHRgb>& palette)
 {
-    float maxSat = 0;
-    float minSat = 1;
+    float maxSat = 0.0f, minSat = 1.0f;
 
     for (int i = 0; i < palette.size(); i++)
     {
@@ -386,124 +407,39 @@ static void PaletteSaturate(std::vector<NSHRgb>& palette, std::vector<NSHRgb>& r
         maxSat = std::max(maxSat, s);
         minSat = std::min(minSat, s);
     }
-
-    for (int i = 0; i < palette.size(); i++)
+    if (maxSat > minSat)
     {
-        float h, s, v;
-        RgbToHsv(palette[i], h, s, v);
-        float newSat = (s - minSat) / (maxSat - minSat);
-        resultPalette[i] = HsvToRgb(h, newSat, v);
-    }
-    return;
-    std::vector<float> pArray(palette.size() * 3);
-    for (int i = 0; i < palette.size(); i++)
-    {
-        NSHRgb p = palette[i];
-        int j = i * 3;
-        pArray[j] = p.R;
-        pArray[j + 1] = p.G;
-        pArray[j + 2] = p.B;
-    }
-
-    float min = *std::min_element(pArray.begin(), pArray.end());
-    float max = *std::max_element(pArray.begin(), pArray.end());
-
-    float diff = max - min;
-    for (int i = 0; i < palette.size(); i++)
-    {
-        resultPalette[i].R = (uint8_t)(255 * (palette[i].R - min) / diff);
-        resultPalette[i].G = (uint8_t)(255 * (palette[i].G - min) / diff);
-        resultPalette[i].B = (uint8_t)(255 * (palette[i].B - min) / diff);
-    }
-}
-
-static void SaturatePaletteImg(std::vector<NSHRgb>& palette, std::vector<NSHRgb>& imPalette, std::vector<NSHRgb>& imgResultPalette)
-{
-    float maxSat = 0;
-    float minSat = 1;
-
-    for (int i = 0; i < palette.size(); i++)
-    {
-        float h, s, v;
-        RgbToHsv(palette[i], h, s, v);
-        maxSat = std::max(maxSat, s);
-        minSat = std::min(minSat, s);
-    }
-
-    for (int i = 0; i < imPalette.size(); i++)
-    {
-        float h, s, v;
-        RgbToHsv(imPalette[i], h, s, v);
-        float newSat = (s - minSat) / (maxSat - minSat);
-        imgResultPalette[i] = HsvToRgb(h, newSat, v);
-    }
-    return;
-    std::vector<float> pArray(palette.size() * 3);
-    for (int i = 0; i < palette.size(); i++)
-    {
-        NSHRgb p = palette[i];
-        int j = i * 3;
-        pArray[j] = p.R;
-        pArray[j + 1] = p.G;
-        pArray[j + 2] = p.B;
-    }
-
-    float min = *std::min_element(pArray.begin(), pArray.end());
-    float max = *std::max_element(pArray.begin(), pArray.end());
-    float diff = max - min;
-    for (int i = 0; i < imPalette.size(); i++)
-    {
-        imgResultPalette[i].R = (uint8_t)(255 * (imPalette[i].R - min) / diff);
-        imgResultPalette[i].G = (uint8_t)(255 * (imPalette[i].G - min) / diff);
-        imgResultPalette[i].B = (uint8_t)(255 * (imPalette[i].B - min) / diff);
-    }
-}
-
-extern "C" NSHOption NSHMakeDefaultOption()
-{
-    NSHOption o;
-    o.SampleFraction = 0.05f;
-    o.BrightnessThreshold = 0.25f;
-    o.SaturationThreshold = 0.20f;
-    o.KmeansMaxIter = 40;
-    o.Saturate = false;
-    o.WhiteBackground = false;
-    o.NumColors = 6;
-    return o;
-}
-
-extern "C" bool NSHCreatePalette(std::vector<NSHRgb>& input, size_t inputSize, NSHOption option, std::vector<NSHRgb>& palette, std::vector<uint8_t>& result, int width, int height)
-{
-    if (input.empty() || palette.empty())
-    {
-        return false;
-    }
-    if (option.NumColors < 2)
-    {
-        return false;
-    }
-
-    std::vector<NSHRgb> samples;
-    SamplePixels(input.data(), inputSize, option, samples);
-    NSHRgb origBgColor = FindBackgroundColor(samples, bitsPerSample);
-    std::vector<NSHRgb> pal(option.NumColors);
-    std::vector<NSHRgb> resultPal(option.NumColors);
-    PaletteCreate(samples, origBgColor, option, pal);
-    NSHRgb bgColor = origBgColor;
-    if (option.WhiteBackground)
-    {
-        bgColor = NSHRgb{ 255, 255, 255 };
-    }
-    PaletteApply(input, pal, origBgColor, bgColor, option, result, width, height);
-    if (option.Saturate)
-    {
-        PaletteSaturate(pal, palette);
-    }
-    else
-    {
-        for (int k = 0; k < palette.size(); k++)
+        for (int i = 0; i < palette.size(); i++)
         {
-            palette[k] = pal[k];
+            float h, s, v;
+            RgbToHsv(palette[i], h, s, v);
+            float newSat = (s - minSat) / (maxSat - minSat);
+            palette[i] = HsvToRgb(h, newSat, v);
+        }
+    }
+
+    return true;
+}
+
+extern "C" bool NSHPaletteNorm(std::vector<NSHRgb>& palette)
+{
+    float maxVal = 0.0f, minVal = 1.0f;
+
+    for (int i = 0; i < palette.size(); i++)
+    {
+        float h, s, v;
+        RgbToHsv(palette[i], h, s, v);
+        maxVal = std::max(maxVal, v);
+        minVal = std::min(minVal, v);
+    }
+    if (maxVal > minVal)
+    {
+        for (int i = 0; i < palette.size(); i++)
+        {
+            float h, s, v;
+            RgbToHsv(palette[i], h, s, v);
+            float newVal = (v - minVal) / (maxVal - minVal);
+            palette[i] = HsvToRgb(h, s, newVal);
         }
     }
 
