@@ -1,4 +1,4 @@
-.TH "NoteShrink" 1 1.2 "27 Dec 2022" "User Manual"
+.TH "NoteShrink" 1 1.4 "27 Dec 2022" "User Manual"
 
 .SH NAME
 noteshrink
@@ -7,7 +7,7 @@ noteshrink
 Convert scans of handwritten notes to beautiful. 
 
 .SH SYNOPSIS
-noteshrink [options] image_im image_out
+noteshrink [options] image_in image_out.png
 
 .SH OPTIONS
 .TP
@@ -22,6 +22,9 @@ part of pixels to sample (default 0.050000)
 .TP
 -q
 quiet mode
+.TP
+-r RADIUS
+radius despeckle FG mask (default 1)
 .TP
 -s NUM
 background saturation threshold (default 0.200000)

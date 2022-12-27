@@ -24,7 +24,7 @@ make
 ## Demo
 
 ```sh
-./noteshrink images/test.jpg images/testout.png
+./noteshrink -n 8 images/test.jpg images/testout.png
 optipng images/testout.png
 ```
 

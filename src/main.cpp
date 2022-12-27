@@ -1,19 +1,21 @@
 ﻿#include "noteshrink.h"
-#include <stb/stb_image.h>
-#include <stb/stb_image_write.h>
+
 #include <string>
 #include <vector>
 #include <unistd.h>
+#include <stb/stb_image.h>
+#include <stb/stb_image_write.h>
 
 void NoteshrinkUsage(char* prog, NSHOption o)
 {
-    printf("NoteShrink.\n");
-    printf("usage: %s [options] image_im image_out\n", prog);
+    printf("NoteShrink version %s.\n", NOTESHRINK_VERSION);
+    printf("usage: %s [options] image_in image_out.png\n", prog);
     printf("options:\n");
     printf("  -k NUM_ITERS      number of iterations KMeans (default %d)\n", o.KmeansMaxIter);
     printf("  -n NUM_COLORS     number of output colors (default %d)\n", o.NumColors);
     printf("  -p NUM            part of pixels to sample (default %f)\n", o.SampleFraction);
     printf("  -q                quiet mode\n");
+    printf("  -r RADIUS         radius despeckle FG mask (default %d)\n", o.Despeckle);
     printf("  -s NUM            background saturation threshold (default %f)\n", o.SaturationThreshold);
     printf("  -v NUM            background value threshold (default %f)\n", o.BrightnessThreshold);
     printf("  -w                make background white (default %d)\n", o.WhiteBackground);
@@ -37,7 +39,7 @@ int main(int argc, char **argv)
     {
         int fquiet;
         int opt;
-        while ((opt = getopt(argc, argv, ":k:n:p:qs:v:wNSh")) != -1)
+        while ((opt = getopt(argc, argv, ":k:n:p:qr:s:v:wNSh")) != -1)
         {
             switch(opt)
             {
@@ -67,6 +69,14 @@ int main(int argc, char **argv)
                 break;
             case 'q':
                 fquiet = 1;
+                break;
+            case 'r':
+                o.Despeckle = atoi(optarg);
+                if (o.Despeckle < 0)
+                {
+                    printf("ERROR: NUM_COLORS = %d < %d", o.Despeckle, 0);
+                    return 1;
+                }
                 break;
             case 's':
                 o.SaturationThreshold = atof(optarg);
@@ -136,7 +146,7 @@ int main(int argc, char **argv)
         std::vector<NSHRgb> palette(o.NumColors);
         std::vector<uint8_t> result;
         NSHPaletteCreate(img, img.size(), o, palette);
-        NSHPaletteApply(img, palette, o, result, width, height);
+        NSHPaletteApply(img, palette, width, height, o, result);
         if (o.Saturate)
         {
             NSHPaletteSaturate(palette);
