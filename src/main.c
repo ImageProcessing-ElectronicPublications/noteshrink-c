@@ -1,4 +1,4 @@
-#include <string>
+#include <math.h>
 #include <unistd.h>
 #include <stb/stb_image.h>
 #include <stb/stb_image_write.h>
@@ -35,7 +35,7 @@ int main(int argc, char **argv)
     }
     else
     {
-        int fquiet;
+        int fquiet = 0;
         int opt;
         while ((opt = getopt(argc, argv, ":k:n:p:qr:s:v:wNSh")) != -1)
         {
@@ -119,11 +119,9 @@ int main(int argc, char **argv)
             NoteshrinkUsage(argv[0], o);
             return 0;
         }
-        std::string filein(argv[optind]);
-        std::string fileout(argv[optind + 1]);
 
         int width, height, bpp;
-        stbi_uc* pixels = stbi_load(filein.c_str(), &width, &height, &bpp, STBI_rgb_alpha);
+        stbi_uc* pixels = stbi_load(argv[optind], &width, &height, &bpp, STBI_rgb_alpha);
         size_t pixs = width * height;
         NSHRgb* img = (NSHRgb*)malloc(pixs * sizeof(NSHRgb));
 
@@ -156,7 +154,9 @@ int main(int argc, char **argv)
         }
         if (o.WhiteBackground)
         {
-            palette[0] = NSHRgb{ 255, 255, 255 };
+            palette[0].R = 255.0f;
+            palette[0].G = 255.0f;
+            palette[0].B = 255.0f;
         }
         if (!fquiet)
         {
@@ -185,7 +185,7 @@ int main(int argc, char **argv)
                 data[idx + 2] = (uint8_t)(p.B + 0.5f);
             }
         }
-        stbi_write_png(fileout.c_str(), width, height, numberOfChannels, data, width * numberOfChannels);
+        stbi_write_png(argv[optind + 1], width, height, numberOfChannels, data, width * numberOfChannels);
         if (!fquiet)
         {
             printf("done\n");

@@ -22,7 +22,7 @@ static NSHRgb NSHRgbMul(NSHRgb a, float scalar)
 
 static float NSHRgbSquareDistance(NSHRgb a, NSHRgb b)
 {
-    float squareDistance = 0;
+    float squareDistance = 0.0f;
     squareDistance += (a.R - b.R) * (a.R - b.R);
     squareDistance += (a.G - b.G) * (a.G - b.G);
     squareDistance += (a.B - b.B) * (a.B - b.B);
@@ -45,11 +45,12 @@ static size_t NSHRgbClosest(NSHRgb p, NSHRgb* means, size_t meansSize)
     return idx;
 }
 
-static void ColorRgbToHsv(NSHRgb p, float& h, float& s, float& v)
+static NSHRgb ColorRgbToHsv(NSHRgb p)
 {
     float r = p.R / 255.0f;
     float g = p.G / 255.0f;
     float b = p.B / 255.0f;
+    float h, s, v;
     float max = (r > g) ? r : g;
     max = (max > b) ? max : b;
     float min = (r < g) ? r : g;
@@ -81,18 +82,25 @@ static void ColorRgbToHsv(NSHRgb p, float& h, float& s, float& v)
         s /= max;
     }
     v = max;
+    p.R = h;
+    p.G = s;
+    p.B = v;
+    return p;
 }
 
-static NSHRgb ColorHsvToRgb(float h, float s, float v)
+static NSHRgb ColorHsvToRgb(NSHRgb hsv)
 {
+    float h = hsv.R;
+    float s = hsv.G;
+    float v = hsv.B;
     float r = v;
     float g = v;
     float b = v;
     if (s > 0)
     {
         h *= 6.;
-        int i = int(h);
-        float f = h - float(i);
+        int i = (int)h;
+        float f = h - (float)i;
         switch (i)
         {
         default:
@@ -151,13 +159,13 @@ static size_t ImageSamplePixels(NSHRgb* input, size_t inputSize, NSHRgb* samples
 static void ImageQuantize(NSHRgb* image, size_t imageSize, int bitsPerChannel, uint32_t* quantized)
 {
     uint8_t shift = 8 - bitsPerChannel;
-    uint8_t halfbin = uint8_t((1 << shift) >> 1);
+    uint8_t halfbin = (((uint8_t)1 << shift) >> 1);
 
     for (size_t i = 0; i < imageSize; i++)
     {
-        uint32_t r = ((uint8_t(image[i].R) >> shift) << shift) + halfbin;
-        uint32_t g = ((uint8_t(image[i].G) >> shift) << shift) + halfbin;
-        uint32_t b = ((uint8_t(image[i].B) >> shift) << shift) + halfbin;
+        uint32_t r = (((uint8_t)image[i].R >> shift) << shift) + halfbin;
+        uint32_t g = (((uint8_t)image[i].G >> shift) << shift) + halfbin;
+        uint32_t b = (((uint8_t)image[i].B >> shift) << shift) + halfbin;
         uint32_t p = (((r << 8) | g) << 8) | b;
         quantized[i] = p;
     }
@@ -167,8 +175,12 @@ static void ImageKMeans(NSHRgb* data, size_t dataSize, NSHRgb* means, int k, int
 {
     for (int i = 0; i < k; i++)
     {
-        float h = (float(i) + 0.5f) / float(k);
-        NSHRgb p = ColorHsvToRgb(h, 1, 1);
+        float h = ((float)i + 0.5f) / (float)k;
+        NSHRgb p;
+        p.R = h;
+        p.G = 1.0f;
+        p.B = 1.0f;
+        p = ColorHsvToRgb(p);
         size_t l = NSHRgbClosest(p, data, dataSize);
         means[i] = data[l];
     }
@@ -201,7 +213,7 @@ static void ImageKMeans(NSHRgb* data, size_t dataSize, NSHRgb* means, int k, int
         for (size_t i = 0; i < k; i++)
         {
             int len = (mLen[i] > 0) ? mLen[i] : 1;
-            NSHRgb m = NSHRgbMul(means[i], 1 / float(len));
+            NSHRgb m = NSHRgbMul(means[i], 1.0f / (float)len);
             means[i] = m;
         }
         int changes = 0;
@@ -276,14 +288,12 @@ static NSHRgb BackgroundColorFind(NSHRgb* image, size_t imageSize, int bitsPerCh
 
 static void ForegroundMaskCreate(NSHRgb bgColor, NSHRgb* samples, size_t samplesSize, NSHOption option, bool* mask)
 {
-    float hBg, sBg, vBg;
-    ColorRgbToHsv(bgColor, hBg, sBg, vBg);
+    NSHRgb bghsv = ColorRgbToHsv(bgColor);
     for (size_t i = 0; i < samplesSize; i++)
     {
-        float h, s, v;
-        ColorRgbToHsv(samples[i], h, s, v);
-        float sd = (sBg > s) ? (sBg - s) : (s - sBg);
-        float vd = (vBg > v) ? (vBg - v) : (v - vBg);
+        NSHRgb hsv = ColorRgbToHsv(samples[i]);
+        float sd = (bghsv.G > hsv.G) ? (bghsv.G - hsv.G) : (hsv.G - bghsv.G);
+        float vd = (bghsv.B > hsv.B) ? (bghsv.B - hsv.B) : (hsv.B - bghsv.B);
         mask[i] = vd >= option.BrightnessThreshold || sd >= option.SaturationThreshold;
     }
 }
@@ -360,7 +370,7 @@ static void NSHPaletteGenerate(NSHRgb *samples, size_t samplesSize, NSHRgb bgCol
     free(means);
 }
 
-extern "C" NSHOption NSHMakeDefaultOption()
+extern NSHOption NSHMakeDefaultOption()
 {
     NSHOption o;
     o.SampleFraction = 0.05f;
@@ -375,7 +385,7 @@ extern "C" NSHOption NSHMakeDefaultOption()
     return o;
 }
 
-extern "C" bool NSHPaletteCreate(NSHRgb* input, size_t inputSize, NSHOption option, NSHRgb* palette, size_t paletteSize)
+extern bool NSHPaletteCreate(NSHRgb* input, size_t inputSize, NSHOption option, NSHRgb* palette, size_t paletteSize)
 {
     if (!input || !palette)
     {
@@ -400,7 +410,7 @@ extern "C" bool NSHPaletteCreate(NSHRgb* input, size_t inputSize, NSHOption opti
     return true;
 }
 
-extern "C" bool NSHPaletteApply(NSHRgb* img, size_t imgSize, NSHRgb* palette, size_t paletteSize, int width, int height, NSHOption option, uint8_t *result)
+extern bool NSHPaletteApply(NSHRgb* img, size_t imgSize, NSHRgb* palette, size_t paletteSize, int width, int height, NSHOption option, uint8_t *result)
 {
     bool* fgMask = (bool*)malloc(imgSize * sizeof(bool));
     NSHRgb bgColor = palette[0];
@@ -424,50 +434,48 @@ extern "C" bool NSHPaletteApply(NSHRgb* img, size_t imgSize, NSHRgb* palette, si
     return true;
 }
 
-extern "C" bool NSHPaletteSaturate(NSHRgb *palette, size_t paletteSize)
+extern bool NSHPaletteSaturate(NSHRgb *palette, size_t paletteSize)
 {
     float maxSat = 0.0f, minSat = 1.0f;
 
     for (size_t i = 0; i < paletteSize; i++)
     {
-        float h, s, v;
-        ColorRgbToHsv(palette[i], h, s, v);
-        maxSat = (maxSat < s) ? s : maxSat;
-        minSat = (minSat > s) ? s : maxSat;
+        NSHRgb hsv = ColorRgbToHsv(palette[i]);
+        maxSat = (maxSat < hsv.G) ? hsv.G : maxSat;
+        minSat = (minSat > hsv.G) ? hsv.G : maxSat;
     }
     if (maxSat > minSat)
     {
         for (size_t i = 0; i < paletteSize; i++)
         {
-            float h, s, v;
-            ColorRgbToHsv(palette[i], h, s, v);
-            float newSat = (s - minSat) / (maxSat - minSat);
-            palette[i] = ColorHsvToRgb(h, newSat, v);
+            NSHRgb hsv = ColorRgbToHsv(palette[i]);
+            float newSat = (hsv.G - minSat) / (maxSat - minSat);
+            hsv.G = newSat;
+            palette[i] = ColorHsvToRgb(hsv);
         }
     }
 
     return true;
 }
 
-extern "C" bool NSHPaletteNorm(NSHRgb *palette, size_t paletteSize)
+extern bool NSHPaletteNorm(NSHRgb *palette, size_t paletteSize)
 {
     float maxVal = 0.0f, minVal = 1.0f;
 
     for (size_t i = 0; i < paletteSize; i++)
     {
-        float h, s, v;
-        ColorRgbToHsv(palette[i], h, s, v);
-        maxVal = (maxVal < v) ? v : maxVal;
-        minVal = (minVal > v) ? v : minVal;
+        NSHRgb hsv = ColorRgbToHsv(palette[i]);
+        maxVal = (maxVal < hsv.B) ? hsv.B : maxVal;
+        minVal = (minVal > hsv.B) ? hsv.B : minVal;
     }
     if (maxVal > minVal)
     {
         for (size_t i = 0; i < paletteSize; i++)
         {
-            float h, s, v;
-            ColorRgbToHsv(palette[i], h, s, v);
-            float newVal = (v - minVal) / (maxVal - minVal);
-            palette[i] = ColorHsvToRgb(h, s, newVal);
+            NSHRgb hsv = ColorRgbToHsv(palette[i]);
+            float newVal = (hsv.B - minVal) / (maxVal - minVal);
+            hsv.B = newVal;
+            palette[i] = ColorHsvToRgb(hsv);
         }
     }
 
