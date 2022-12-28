@@ -1,17 +1,6 @@
-﻿#include "noteshrink.h"
+#include "noteshrink.h"
 
-#include <cassert>
-#include <cmath>
-#include <algorithm>
-#include <chrono>
-#include <iostream>
-#include <map>
-#include <vector>
-
-namespace
-{
-int const bitsPerSample = 6;
-}
+#define bitsPerSample 6
 
 static NSHRgb NSHRgbAdd(NSHRgb a, NSHRgb b)
 {
@@ -40,11 +29,11 @@ static float NSHRgbSquareDistance(NSHRgb a, NSHRgb b)
     return squareDistance;
 }
 
-static int NSHRgbClosest(NSHRgb p, std::vector<NSHRgb> const& means)
+static size_t NSHRgbClosest(NSHRgb p, NSHRgb* means, size_t meansSize)
 {
-    int idx = 0;
+    size_t idx = 0;
     float minimum = NSHRgbSquareDistance(p, means[0]);
-    for (size_t i = 0; i < means.size(); i++)
+    for (size_t i = 1; i < meansSize; i++)
     {
         float squaredDistance = NSHRgbSquareDistance(p, means[i]);
         if (squaredDistance < minimum)
@@ -61,8 +50,10 @@ static void ColorRgbToHsv(NSHRgb p, float& h, float& s, float& v)
     float r = p.R / 255.0f;
     float g = p.G / 255.0f;
     float b = p.B / 255.0f;
-    float max = std::max(std::max(r, g), b);
-    float min = std::min(std::min(r, g), b);
+    float max = (r > g) ? r : g;
+    max = (max > b) ? max : b;
+    float min = (r < g) ? r : g;
+    min = (min < b) ? min : b;
     h = max - min;
     if (h > 0)
     {
@@ -138,57 +129,58 @@ static NSHRgb ColorHsvToRgb(float h, float s, float v)
     return p;
 }
 
-static void ImageSamplePixels(NSHRgb* input, size_t inputSize, NSHOption o, std::vector<NSHRgb>& samples)
+static size_t ImageSamplePixels(NSHRgb* input, size_t inputSize, NSHRgb* samples, size_t samplesSize, NSHOption o)
 {
-    samples.clear();
-    size_t numSamples = (size_t)std::min(std::max(float(inputSize) * o.SampleFraction, float(0)), float(inputSize));
-    size_t interval = std::max((size_t)1, inputSize / numSamples);
-    for (size_t i = 0; i < inputSize; i += interval)
+    size_t k = 0;
+    if ((samplesSize > 0) && (samplesSize < inputSize))
     {
-        samples.push_back(input[i]);
+        size_t interval = (size_t)inputSize / samplesSize;
+        interval = (interval > 0) ? interval : 1;
+        for (size_t i = 0; i < inputSize; i += interval)
+        {
+            if (k < samplesSize)
+            {
+                samples[k] = input[i];
+                k++;
+            }
+        }
     }
+    return k;
 }
 
-static void ImageQuantize(std::vector<NSHRgb> const& image, int bitsPerChannel, std::vector<uint32_t>& quantized)
+static void ImageQuantize(NSHRgb* image, size_t imageSize, int bitsPerChannel, uint32_t* quantized)
 {
     uint8_t shift = 8 - bitsPerChannel;
     uint8_t halfbin = uint8_t((1 << shift) >> 1);
 
-    quantized.clear();
-    quantized.reserve(image.size());
-
-    for (size_t i = 0; i < image.size(); i++)
+    for (size_t i = 0; i < imageSize; i++)
     {
         uint32_t r = ((uint8_t(image[i].R) >> shift) << shift) + halfbin;
         uint32_t g = ((uint8_t(image[i].G) >> shift) << shift) + halfbin;
         uint32_t b = ((uint8_t(image[i].B) >> shift) << shift) + halfbin;
         uint32_t p = (((r << 8) | g) << 8) | b;
-        quantized.push_back(p);
+        quantized[i] = p;
     }
 }
 
-static void ImageKMeans(std::vector<NSHRgb> const& data, int k, int maxItr, std::vector<NSHRgb>& means)
+static void ImageKMeans(NSHRgb* data, size_t dataSize, NSHRgb* means, int k, int maxItr)
 {
-    means.clear();
-    means.reserve(k);
-
     for (int i = 0; i < k; i++)
     {
         float h = (float(i) + 0.5f) / float(k);
         NSHRgb p = ColorHsvToRgb(h, 1, 1);
-        float minval = 196608.0f;
-        int k = NSHRgbClosest(p, data);
-        means.push_back(data[k]);
+        size_t l = NSHRgbClosest(p, data, dataSize);
+        means[i] = data[l];
     }
 
-    std::vector<int> clusters(data.size());
-    for (size_t i = 0; i < data.size(); i++)
+    int* clusters = (int*)malloc(dataSize * sizeof(int));
+    for (size_t i = 0; i < dataSize; i++)
     {
         NSHRgb d = data[i];
-        clusters[i] = NSHRgbClosest(d, means);
+        clusters[i] = NSHRgbClosest(d, means, k);
     }
 
-    std::vector<int> mLen(k);
+    int* mLen = (int*)malloc(k * sizeof(int));
     for (int itr = 0; itr < maxItr; itr++)
     {
         for (size_t i = 0; i < k; i++)
@@ -198,7 +190,7 @@ static void ImageKMeans(std::vector<NSHRgb> const& data, int k, int maxItr, std:
             means[i] = p;
             mLen[i] = 0;
         }
-        for (size_t i = 0; i < data.size(); i++)
+        for (size_t i = 0; i < dataSize; i++)
         {
             NSHRgb p = data[i];
             int cluster = clusters[i];
@@ -206,17 +198,17 @@ static void ImageKMeans(std::vector<NSHRgb> const& data, int k, int maxItr, std:
             means[cluster] = m;
             mLen[cluster] = mLen[cluster] + 1;
         }
-        for (size_t i = 0; i < means.size(); i++)
+        for (size_t i = 0; i < k; i++)
         {
-            int len = std::max(1, mLen[i]);
+            int len = (mLen[i] > 0) ? mLen[i] : 1;
             NSHRgb m = NSHRgbMul(means[i], 1 / float(len));
             means[i] = m;
         }
         int changes = 0;
-        for (size_t i = 0; i < data.size(); i++)
+        for (size_t i = 0; i < dataSize; i++)
         {
             NSHRgb p = data[i];
-            int cluster = NSHRgbClosest(p, means);
+            int cluster = NSHRgbClosest(p, means, k);
             if (cluster != clusters[i])
             {
                 changes++;
@@ -228,25 +220,42 @@ static void ImageKMeans(std::vector<NSHRgb> const& data, int k, int maxItr, std:
             break;
         }
     }
+    free(clusters);
+    free(mLen);
 }
 
-static NSHRgb BackgroundColorFind(std::vector<NSHRgb> const& image, int bitsPerChannel)
+static NSHRgb BackgroundColorFind(NSHRgb* image, size_t imageSize, int bitsPerChannel)
 {
-    std::vector<uint32_t> quantized;
-    ImageQuantize(image, bitsPerChannel, quantized);
-    std::map<uint32_t, int> count;
-    int maxcount = 1;
-    uint32_t maxvalue = quantized[0];
-    for (size_t i = 1; i < quantized.size(); i++)
+    uint32_t* quantized = (uint32_t*)malloc(imageSize * sizeof(uint32_t));
+    ImageQuantize(image, imageSize, bitsPerChannel, quantized);
+    int* count = (int*)malloc(imageSize * sizeof(int));
+    for (size_t i = 0; i < imageSize; i++)
     {
-        uint32_t v = quantized[i];
-        int c = count[v] + 1;
-        if (c > maxcount)
+        count[i] = 1;
+    }
+    for (size_t i = 0; i < imageSize - 1; i++)
+    {
+        if (count[i] > 0)
         {
-            maxcount = c;
-            maxvalue = v;
+            for (size_t j = i + 1; j < imageSize; j++)
+            {
+                if (quantized[i] == quantized[j])
+                {
+                    count[i] += count[j];
+                    count[j] = 0;
+                }
+            }
         }
-        count[v] = c;
+    }
+    int maxcount = count[0];
+    uint32_t maxvalue = quantized[0];
+    for (size_t i = 1; i < imageSize; i++)
+    {
+        if (maxcount < count[i])
+        {
+            maxcount = count[i];
+            maxvalue = quantized[i];
+        }
     }
 
     uint8_t shift = 8 - bitsPerChannel;
@@ -259,44 +268,34 @@ static NSHRgb BackgroundColorFind(std::vector<NSHRgb> const& image, int bitsPerC
     bg.G = g;
     bg.B = b;
 
+    free(quantized);
+    free(count);
+
     return bg;
 }
 
-static void ForegroundMaskCreate(NSHRgb bgColor, std::vector<NSHRgb> const& samples, NSHOption option, std::vector<bool>& mask)
+static void ForegroundMaskCreate(NSHRgb bgColor, NSHRgb* samples, size_t samplesSize, NSHOption option, bool* mask)
 {
     float hBg, sBg, vBg;
     ColorRgbToHsv(bgColor, hBg, sBg, vBg);
-    std::vector<float> sSamples;
-    sSamples.reserve(samples.size());
-    std::vector<float> vSamples;
-    vSamples.reserve(samples.size());
-    for (size_t i = 0; i < samples.size(); i++)
+    for (size_t i = 0; i < samplesSize; i++)
     {
         float h, s, v;
         ColorRgbToHsv(samples[i], h, s, v);
-        sSamples.push_back(s);
-        vSamples.push_back(v);
-    }
-
-    mask.clear();
-    mask.reserve(samples.size());
-    for (size_t i = 0; i < samples.size(); i++)
-    {
-        float sDiff = fabs(sBg - sSamples[i]);
-        float vDiff = fabs(vBg - vSamples[i]);
-        bool fg = vDiff >= option.BrightnessThreshold || sDiff >= option.SaturationThreshold;
-        mask.push_back(fg);
+        float sd = (sBg > s) ? (sBg - s) : (s - sBg);
+        float vd = (vBg > v) ? (vBg - v) : (v - vBg);
+        mask[i] = vd >= option.BrightnessThreshold || sd >= option.SaturationThreshold;
     }
 }
 
-static void ForegroundMaskDespeckle(std::vector<bool>& fgMask, NSHOption option, int width, int height)
+static void ForegroundMaskDespeckle(bool* fgMask, int width, int height, NSHOption option)
 {
     if (option.Despeckle > 0)
     {
         // Despeckle (2*r+1)x(2*r+1)
         int r = option.Despeckle;
         int a2 = (2 * r + 1) * (2 * r + 1) / 2 + 1;
-        int k = 0;
+        size_t k = 0;
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
@@ -312,7 +311,7 @@ static void ForegroundMaskDespeckle(std::vector<bool>& fgMask, NSHOption option,
                         {
                             int xf = x + j;
                             xf = (xf < 0) ? 0 : ((xf < width) ? xf : (width - 1));
-                            int kf = width * yf + xf;
+                            size_t kf = width * yf + xf;
                             if (fgMask[k] == fgMask[kf]) l++;
                         }
                     }
@@ -324,34 +323,41 @@ static void ForegroundMaskDespeckle(std::vector<bool>& fgMask, NSHOption option,
     }
 }
 
-static void NSHPaletteGenerate(std::vector<NSHRgb> const& samples, NSHRgb bgColor, NSHOption option, std::vector<NSHRgb>& outPalette)
+static void NSHPaletteGenerate(NSHRgb *samples, size_t samplesSize, NSHRgb bgColor, NSHOption option, NSHRgb *palette, size_t paletteSize)
 {
-    std::vector<bool> fgMask;
-    ForegroundMaskCreate(bgColor, samples, option, fgMask);
-    std::vector<NSHRgb> data;
-
-    for (int i = 0; i < samples.size(); i++)
+    bool* fgMask = (bool*)malloc(samplesSize * sizeof(bool));
+    ForegroundMaskCreate(bgColor, samples, samplesSize, option, fgMask);
+    size_t dataSize = 0;
+    for (size_t i = 0; i < samplesSize; i++)
     {
         if (fgMask[i])
         {
-            NSHRgb v = samples[i];
-            data.push_back(v);
+            dataSize++;
+        }
+    }
+    NSHRgb* data = (NSHRgb*)malloc(dataSize * sizeof(NSHRgb));
+    size_t k = 0;
+    for (size_t i = 0; i < samplesSize; i++)
+    {
+        if (fgMask[i])
+        {
+            data[k] = samples[i];
+            k++;
         }
     }
 
-    std::vector<NSHRgb> means;
-    ImageKMeans(data, outPalette.size() - 1, option.KmeansMaxIter, means);
+    NSHRgb* means = (NSHRgb*)malloc((paletteSize - 1) * sizeof(NSHRgb));
+    ImageKMeans(data, dataSize, means, paletteSize - 1, option.KmeansMaxIter);
 
     size_t idx = 0;
-    outPalette[idx++] = bgColor;
-    for (size_t i = 0; i < means.size(); i++)
+    palette[0] = bgColor;
+    for (size_t i = 1; i < paletteSize; i++)
     {
-        NSHRgb c = means[i];
-        c.R = round(c.R);
-        c.G = round(c.G);
-        c.B = round(c.B);
-        outPalette[idx++] = c;
+        palette[i] = means[i - 1];
     }
+    free(fgMask);
+    free(data);
+    free(means);
 }
 
 extern "C" NSHOption NSHMakeDefaultOption()
@@ -369,9 +375,9 @@ extern "C" NSHOption NSHMakeDefaultOption()
     return o;
 }
 
-extern "C" bool NSHPaletteCreate(std::vector<NSHRgb>& input, size_t inputSize, NSHOption option, std::vector<NSHRgb>& palette)
+extern "C" bool NSHPaletteCreate(NSHRgb* input, size_t inputSize, NSHOption option, NSHRgb* palette, size_t paletteSize)
 {
-    if (input.empty() || palette.empty())
+    if (!input || !palette)
     {
         return false;
     }
@@ -379,52 +385,59 @@ extern "C" bool NSHPaletteCreate(std::vector<NSHRgb>& input, size_t inputSize, N
     {
         return false;
     }
+    size_t samplesSize = (size_t)(option.SampleFraction * inputSize);
+    if ((samplesSize < 0) || (samplesSize > inputSize))
+    {
+        return false;
+    }
 
-    std::vector<NSHRgb> samples;
-    ImageSamplePixels(input.data(), inputSize, option, samples);
-    NSHRgb bgColor = BackgroundColorFind(samples, bitsPerSample);
-    NSHPaletteGenerate(samples, bgColor, option, palette);
+    NSHRgb* samples = (NSHRgb*)malloc(samplesSize * sizeof(NSHRgb));
+    samplesSize = ImageSamplePixels(input, inputSize, samples, samplesSize, option);
+    NSHRgb bgColor = BackgroundColorFind(samples, samplesSize, bitsPerSample);
+    NSHPaletteGenerate(samples, samplesSize, bgColor, option, palette, paletteSize);
+    free(samples);
 
     return true;
 }
 
-extern "C" bool NSHPaletteApply(std::vector<NSHRgb>& img, std::vector<NSHRgb>& palette, int width, int height, NSHOption option, std::vector<uint8_t>& result)
+extern "C" bool NSHPaletteApply(NSHRgb* img, size_t imgSize, NSHRgb* palette, size_t paletteSize, int width, int height, NSHOption option, uint8_t *result)
 {
-    std::vector<bool> fgMask;
+    bool* fgMask = (bool*)malloc(imgSize * sizeof(bool));
     NSHRgb bgColor = palette[0];
-    ForegroundMaskCreate(bgColor, img, option, fgMask);
-    ForegroundMaskDespeckle(fgMask, option, width, height);
-    for (int i = 0; i < img.size(); i++)
+    ForegroundMaskCreate(bgColor, img, imgSize, option, fgMask);
+    ForegroundMaskDespeckle(fgMask, width, height, option);
+    for (size_t i = 0; i <  imgSize; i++)
     {
         if (!fgMask[i])
         {
-            result.push_back(0);
+            result[i] = 0;
         }
         else
         {
             NSHRgb p = img[i];
-            int minIdx = NSHRgbClosest(p, palette);
-            result.push_back(minIdx);
+            int minIdx = NSHRgbClosest(p, palette, paletteSize);
+            result[i] = minIdx;
         }
     }
+    free(fgMask);
 
     return true;
 }
 
-extern "C" bool NSHPaletteSaturate(std::vector<NSHRgb>& palette)
+extern "C" bool NSHPaletteSaturate(NSHRgb *palette, size_t paletteSize)
 {
     float maxSat = 0.0f, minSat = 1.0f;
 
-    for (int i = 0; i < palette.size(); i++)
+    for (size_t i = 0; i < paletteSize; i++)
     {
         float h, s, v;
         ColorRgbToHsv(palette[i], h, s, v);
-        maxSat = std::max(maxSat, s);
-        minSat = std::min(minSat, s);
+        maxSat = (maxSat < s) ? s : maxSat;
+        minSat = (minSat > s) ? s : maxSat;
     }
     if (maxSat > minSat)
     {
-        for (int i = 0; i < palette.size(); i++)
+        for (size_t i = 0; i < paletteSize; i++)
         {
             float h, s, v;
             ColorRgbToHsv(palette[i], h, s, v);
@@ -436,20 +449,20 @@ extern "C" bool NSHPaletteSaturate(std::vector<NSHRgb>& palette)
     return true;
 }
 
-extern "C" bool NSHPaletteNorm(std::vector<NSHRgb>& palette)
+extern "C" bool NSHPaletteNorm(NSHRgb *palette, size_t paletteSize)
 {
     float maxVal = 0.0f, minVal = 1.0f;
 
-    for (int i = 0; i < palette.size(); i++)
+    for (size_t i = 0; i < paletteSize; i++)
     {
         float h, s, v;
         ColorRgbToHsv(palette[i], h, s, v);
-        maxVal = std::max(maxVal, v);
-        minVal = std::min(minVal, v);
+        maxVal = (maxVal < v) ? v : maxVal;
+        minVal = (minVal > v) ? v : minVal;
     }
     if (maxVal > minVal)
     {
-        for (int i = 0; i < palette.size(); i++)
+        for (size_t i = 0; i < paletteSize; i++)
         {
             float h, s, v;
             ColorRgbToHsv(palette[i], h, s, v);

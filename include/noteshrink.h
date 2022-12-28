@@ -1,13 +1,13 @@
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-#include <cstdbool>
-#include <vector>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdlib.h>
 
 #ifndef __NOTESHRINK_H
 #define __NOTESHRINK_H
-#define NOTESHRINK_VERSION "1.4"
+#define NOTESHRINK_VERSION "2.0"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,13 +33,13 @@ typedef struct {
 
 extern NSHOption NSHMakeDefaultOption();
 
-extern bool NSHPaletteCreate(std::vector<NSHRgb>& input, size_t inputSize, NSHOption option, std::vector<NSHRgb>& palette);
+extern bool NSHPaletteCreate(NSHRgb* input, size_t inputSize, NSHOption option, NSHRgb* palette, size_t paletteSize);
 
-extern bool NSHPaletteApply(std::vector<NSHRgb>& img, std::vector<NSHRgb>& palette, int width, int height, NSHOption option, std::vector<uint8_t>& result);
+extern bool NSHPaletteApply(NSHRgb* img, size_t imgSize, NSHRgb* palette, size_t paletteSize, int width, int height, NSHOption option, uint8_t *result);
 
-extern bool NSHPaletteSaturate(std::vector<NSHRgb>& palette);
+extern bool NSHPaletteSaturate(NSHRgb *palette, size_t paletteSize);
 
-extern bool NSHPaletteNorm(std::vector<NSHRgb>& palette);
+extern bool NSHPaletteNorm(NSHRgb *palette, size_t paletteSize);
 
 #ifdef __cplusplus
 } // extern "C"

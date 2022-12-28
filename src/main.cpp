@@ -1,10 +1,8 @@
-﻿#include "noteshrink.h"
-
 #include <string>
-#include <vector>
 #include <unistd.h>
 #include <stb/stb_image.h>
 #include <stb/stb_image_write.h>
+#include "noteshrink.h"
 
 void NoteshrinkUsage(char* prog, NSHOption o)
 {
@@ -126,7 +124,8 @@ int main(int argc, char **argv)
 
         int width, height, bpp;
         stbi_uc* pixels = stbi_load(filein.c_str(), &width, &height, &bpp, STBI_rgb_alpha);
-        std::vector<NSHRgb> img(width * height);
+        size_t pixs = width * height;
+        NSHRgb* img = (NSHRgb*)malloc(pixs * sizeof(NSHRgb));
 
         size_t i = 0;
         for (int y = 0; y < height; y++)
@@ -143,17 +142,17 @@ int main(int argc, char **argv)
         }
         free(pixels);
 
-        std::vector<NSHRgb> palette(o.NumColors);
-        std::vector<uint8_t> result;
-        NSHPaletteCreate(img, img.size(), o, palette);
-        NSHPaletteApply(img, palette, width, height, o, result);
+        NSHRgb* palette = (NSHRgb*)malloc(o.NumColors * sizeof(NSHRgb));
+        uint8_t* result = (uint8_t*)malloc(pixs * sizeof(uint8_t));
+        NSHPaletteCreate(img, pixs, o, palette, o.NumColors);
+        NSHPaletteApply(img, pixs, palette, o.NumColors, width, height, o, result);
         if (o.Saturate)
         {
-            NSHPaletteSaturate(palette);
+            NSHPaletteSaturate(palette,o.NumColors);
         }
         if (o.Norm)
         {
-            NSHPaletteNorm(palette);
+            NSHPaletteNorm(palette, o.NumColors);
         }
         if (o.WhiteBackground)
         {
@@ -164,15 +163,15 @@ int main(int argc, char **argv)
             printf("Palette:\n");
             for (i = 0; i < o.NumColors; i++)
             {
-                uint8_t r = (uint8_t)palette[i].R, g = (uint8_t)palette[i].G,  b = (uint8_t)palette[i].B;
+                uint8_t r = (uint8_t)(palette[i].R + 0.5f);
+                uint8_t g = (uint8_t)(palette[i].G + 0.5f);
+                uint8_t b = (uint8_t)(palette[i].B + 0.5f);
                 printf("%d: #%02x%02x%02x\n", i, r, g, b);
             }
         }
 
         int numberOfChannels = 3;
-        uint8_t* data = new uint8_t[width * height * numberOfChannels];
-        uint8_t* datafg = new uint8_t[width * height * numberOfChannels];
-
+        uint8_t* data = (uint8_t*)malloc(pixs * numberOfChannels * sizeof(uint8_t));
 
         i = 0;
         for (int y = 0; y < height; y++)
@@ -181,9 +180,9 @@ int main(int argc, char **argv)
             {
                 size_t idx = (height - y - 1) * width * numberOfChannels + x * numberOfChannels;
                 NSHRgb p = palette[result[i++]];
-                data[idx] = (uint8_t)p.R;
-                data[idx + 1] = (uint8_t)p.G;
-                data[idx + 2] = (uint8_t)p.B;
+                data[idx] = (uint8_t)(p.R + 0.5f);
+                data[idx + 1] = (uint8_t)(p.G + 0.5f);
+                data[idx + 2] = (uint8_t)(p.B + 0.5f);
             }
         }
         stbi_write_png(fileout.c_str(), width, height, numberOfChannels, data, width * numberOfChannels);
@@ -191,6 +190,10 @@ int main(int argc, char **argv)
         {
             printf("done\n");
         }
+        free(data);
+        free(result);
+        free(palette);
+        free(img);
     }
     return 0;
 }
