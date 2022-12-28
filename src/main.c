@@ -1,4 +1,3 @@
-#include <math.h>
 #include <unistd.h>
 #include <stb/stb_image.h>
 #include <stb/stb_image_write.h>
@@ -45,7 +44,7 @@ int main(int argc, char **argv)
                 o.KmeansMaxIter = atoi(optarg);
                 if (o.KmeansMaxIter < MinInt)
                 {
-                    printf("ERROR: NUM_ITERS = %d < %d", o.KmeansMaxIter, MinInt);
+                    fprintf(stderr, "ERROR: NUM_ITERS = %d < %d", o.KmeansMaxIter, MinInt);
                     return 1;
                 }
                 break;
@@ -53,7 +52,7 @@ int main(int argc, char **argv)
                 o.NumColors = atoi(optarg);
                 if (o.NumColors < MinInt)
                 {
-                    printf("ERROR: NUM_COLORS = %d < %d", o.NumColors, MinInt);
+                    fprintf(stderr, "ERROR: NUM_COLORS = %d < %d", o.NumColors, MinInt);
                     return 1;
                 }
                 break;
@@ -61,7 +60,7 @@ int main(int argc, char **argv)
                 o.SampleFraction = atof(optarg);
                 if (o.SampleFraction < MinFloat)
                 {
-                    printf("ERROR: p NUM = %f < %f", o.SampleFraction, MinFloat);
+                    fprintf(stderr, "ERROR: p NUM = %f < %f", o.SampleFraction, MinFloat);
                     return 1;
                 }
                 break;
@@ -72,7 +71,7 @@ int main(int argc, char **argv)
                 o.Despeckle = atoi(optarg);
                 if (o.Despeckle < 0)
                 {
-                    printf("ERROR: NUM_COLORS = %d < %d", o.Despeckle, 0);
+                    fprintf(stderr, "ERROR: NUM_COLORS = %d < %d", o.Despeckle, 0);
                     return 1;
                 }
                 break;
@@ -80,7 +79,7 @@ int main(int argc, char **argv)
                 o.SaturationThreshold = atof(optarg);
                 if (o.SaturationThreshold < MinFloat)
                 {
-                    printf("ERROR: s NUM = %f < %f", o.SaturationThreshold, MinFloat);
+                    fprintf(stderr, "ERROR: s NUM = %f < %f", o.SaturationThreshold, MinFloat);
                     return 1;
                 }
                 break;
@@ -88,7 +87,7 @@ int main(int argc, char **argv)
                 o.BrightnessThreshold = atof(optarg);
                 if (o.BrightnessThreshold < MinFloat)
                 {
-                    printf("ERROR: v NUM = %f < %f", o.BrightnessThreshold, MinFloat);
+                    fprintf(stderr, "ERROR: v NUM = %f < %f", o.BrightnessThreshold, MinFloat);
                     return 1;
                 }
                 break;
@@ -105,11 +104,11 @@ int main(int argc, char **argv)
                 fhelp = 1;
                 break;
             case ':':
-                printf("option needs a value\n");
+                fprintf(stderr, "ERROR: option needs a value\n");
                 return 2;
                 break;
             case '?':
-                printf("unknown option: %c\n", optopt);
+                fprintf(stderr, "ERROR: unknown option: %c\n", optopt);
                 return 3;
                 break;
             }
@@ -119,11 +118,18 @@ int main(int argc, char **argv)
             NoteshrinkUsage(argv[0], o);
             return 0;
         }
+        char *filein = argv[optind];
+        char *fileout = argv[optind + 1];
 
         int width, height, bpp;
-        stbi_uc* pixels = stbi_load(argv[optind], &width, &height, &bpp, STBI_rgb_alpha);
+        stbi_uc* pixels = stbi_load(filein, &width, &height, &bpp, STBI_rgb_alpha);
         size_t pixs = width * height;
-        NSHRgb* img = (NSHRgb*)malloc(pixs * sizeof(NSHRgb));
+        NSHRgb* img = NULL;
+        if (!(img = (NSHRgb*)malloc(pixs * sizeof(NSHRgb))))
+        {
+            fprintf(stderr, "ERROR: not use memmory\n");
+            return 4;
+        }
 
         size_t i = 0;
         for (int y = 0; y < height; y++)
@@ -140,8 +146,18 @@ int main(int argc, char **argv)
         }
         free(pixels);
 
-        NSHRgb* palette = (NSHRgb*)malloc(o.NumColors * sizeof(NSHRgb));
-        uint8_t* result = (uint8_t*)malloc(pixs * sizeof(uint8_t));
+        NSHRgb* palette = NULL;
+        if (!(palette = (NSHRgb*)malloc(o.NumColors * sizeof(NSHRgb))))
+        {
+            fprintf(stderr, "ERROR: not use memmory\n");
+            return 4;
+        }
+        uint8_t* result = NULL;
+        if (!(result = (uint8_t*)malloc(pixs * sizeof(uint8_t))))
+        {
+            fprintf(stderr, "ERROR: not use memmory\n");
+            return 4;
+        }
         NSHPaletteCreate(img, pixs, o, palette, o.NumColors);
         NSHPaletteApply(img, pixs, palette, o.NumColors, width, height, o, result);
         if (o.Saturate)
@@ -158,20 +174,37 @@ int main(int argc, char **argv)
             palette[0].G = 255.0f;
             palette[0].B = 255.0f;
         }
+        for (i = 0; i < o.NumColors; i++)
+        {
+            int r = (int)(palette[i].R + 0.5f);
+            int g = (int)(palette[i].G + 0.5f);
+            int b = (int)(palette[i].B + 0.5f);
+            r = (r < 0) ? 0 : ((r > 255) ? 255 : r);
+            g = (g < 0) ? 0 : ((g > 255) ? 255 : g);
+            b = (b < 0) ? 0 : ((b > 255) ? 255 : b);
+            palette[i].R = r;
+            palette[i].G = g;
+            palette[i].B = b;
+        }
         if (!fquiet)
         {
             printf("Palette:\n");
             for (i = 0; i < o.NumColors; i++)
             {
-                uint8_t r = (uint8_t)(palette[i].R + 0.5f);
-                uint8_t g = (uint8_t)(palette[i].G + 0.5f);
-                uint8_t b = (uint8_t)(palette[i].B + 0.5f);
+                uint8_t r = (uint8_t)palette[i].R;
+                uint8_t g = (uint8_t)palette[i].G;
+                uint8_t b = (uint8_t)palette[i].B;
                 printf("%d: #%02x%02x%02x\n", i, r, g, b);
             }
         }
 
         int numberOfChannels = 3;
-        uint8_t* data = (uint8_t*)malloc(pixs * numberOfChannels * sizeof(uint8_t));
+        uint8_t* data = NULL;
+        if (!(data = (uint8_t*)malloc(pixs * numberOfChannels * sizeof(uint8_t))))
+        {
+            fprintf(stderr, "ERROR: not use memmory\n");
+            return 4;
+        }
 
         i = 0;
         for (int y = 0; y < height; y++)
@@ -180,12 +213,12 @@ int main(int argc, char **argv)
             {
                 size_t idx = (height - y - 1) * width * numberOfChannels + x * numberOfChannels;
                 NSHRgb p = palette[result[i++]];
-                data[idx] = (uint8_t)(p.R + 0.5f);
-                data[idx + 1] = (uint8_t)(p.G + 0.5f);
-                data[idx + 2] = (uint8_t)(p.B + 0.5f);
+                data[idx] = (uint8_t)p.R;
+                data[idx + 1] = (uint8_t)p.G;
+                data[idx + 2] = (uint8_t)p.B;
             }
         }
-        stbi_write_png(argv[optind + 1], width, height, numberOfChannels, data, width * numberOfChannels);
+        stbi_write_png(fileout, width, height, numberOfChannels, data, width * numberOfChannels);
         if (!fquiet)
         {
             printf("done\n");

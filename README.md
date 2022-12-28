@@ -35,3 +35,5 @@ optipng images/testout.png
 `images/testout.png`:  
 ![testout](images/testout.png)
 **7281** bytes.
+
+See all imageset: [noteshrink-demo](https://github.com/ImageProcessing-ElectronicPublications/noteshrink-demo).

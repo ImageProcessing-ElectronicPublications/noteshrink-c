@@ -7,7 +7,7 @@
 
 #ifndef __NOTESHRINK_H
 #define __NOTESHRINK_H
-#define NOTESHRINK_VERSION "2.0"
+#define NOTESHRINK_VERSION "2.2"
 
 #ifdef __cplusplus
 extern "C" {
