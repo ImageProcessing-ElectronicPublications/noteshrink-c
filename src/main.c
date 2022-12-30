@@ -122,7 +122,12 @@ int main(int argc, char **argv)
         char *fileout = argv[optind + 1];
 
         int width, height, bpp;
-        stbi_uc* pixels = stbi_load(filein, &width, &height, &bpp, STBI_rgb_alpha);
+        stbi_uc* pixels = NULL;
+        if (!(pixels = stbi_load(filein, &width, &height, &bpp, STBI_rgb_alpha)))
+        {
+            fprintf(stderr, "ERROR: not read image: %s\n", filein);
+            return 5;
+        }
         size_t pixs = width * height;
         NSHRgb* img = NULL;
         if (!(img = (NSHRgb*)malloc(pixs * sizeof(NSHRgb))))
@@ -218,7 +223,11 @@ int main(int argc, char **argv)
                 data[idx + 2] = (uint8_t)p.B;
             }
         }
-        stbi_write_png(fileout, width, height, numberOfChannels, data, width * numberOfChannels);
+        if (!(stbi_write_png(fileout, width, height, numberOfChannels, data, width * numberOfChannels)))
+        {
+            fprintf(stderr, "ERROR: not write image: %s\n", fileout);
+            return 5;
+        }
         if (!fquiet)
         {
             printf("done\n");

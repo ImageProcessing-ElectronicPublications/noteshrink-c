@@ -168,6 +168,33 @@ static NSHRgb ColorHsvToRgb(NSHRgb hsv)
     return p;
 }
 
+static size_t NSHHSVSearch(NSHRgb p, NSHRgb* means, size_t meansSize)
+{
+    size_t idx = 0;
+    NSHRgb hsv;
+    float dH, dS, kS, kV;
+    p = ColorRgbToHsv(p);
+    float minimum = 5.0f;
+    for (size_t i = 0; i < meansSize; i++)
+    {
+        hsv = ColorRgbToHsv(means[i]);
+        dH = (p.R > hsv.R) ? (p.R - hsv.R) : (hsv.R - p.R);
+        dS = (p.G > hsv.G) ? (p.G - hsv.G) : (hsv.G - p.G);
+        kS = 1.0f + dS;
+        kV = (p.B + 0.5f) / (hsv.B + 0.5f);
+        if (dH > 0.5f) dH = 1.0f - dH;
+        dH *= kS;
+        dH *= kV;
+        if (dH < minimum)
+        {
+            minimum = dH;
+            idx = i;
+        }
+    }
+
+    return idx;
+}
+
 static size_t ImageSamplePixels(NSHRgb* input, size_t inputSize, NSHRgb* samples, size_t samplesSize, NSHOption o)
 {
     size_t k = 0;
@@ -213,7 +240,8 @@ static bool ImageKMeans(NSHRgb* data, size_t dataSize, NSHRgb* means, int k, int
         p.B = 1.0f;
         p = ColorHsvToRgb(p);
         size_t l = NSHRgbClosest(p, data, dataSize);
-        means[i] = data[l];
+        p = data[l];
+        means[i] = p;
     }
 
     int* clusters = NULL;
@@ -232,9 +260,20 @@ static bool ImageKMeans(NSHRgb* data, size_t dataSize, NSHRgb* means, int k, int
     {
         return false;
     }
+    for (int i = 0; i < k; i++)
+    {
+        mLen[i] = (int)(dataSize / k);
+    }
     for (int itr = 0; itr < maxItr; itr++)
     {
-        for (size_t i = 0; i < k; i++)
+        NSHRgb pm;
+        for (int i = 0; i < k; i++)
+        {
+            NSHRgb p = NSHRgbMul(means[i], (float)mLen[i]);
+            pm = NSHRgbAdd(pm, p);
+        }
+        pm = NSHRgbMul(pm, 1.0f / (float)dataSize);
+        for (int i = 0; i < k; i++)
         {
             NSHRgb p;
             p.R = p.G = p.B = 0;
@@ -249,11 +288,17 @@ static bool ImageKMeans(NSHRgb* data, size_t dataSize, NSHRgb* means, int k, int
             means[cluster] = m;
             mLen[cluster] = mLen[cluster] + 1;
         }
-        for (size_t i = 0; i < k; i++)
+        for (int i = 0; i < k; i++)
         {
-            int len = (mLen[i] > 0) ? mLen[i] : 1;
-            NSHRgb m = NSHRgbMul(means[i], 1.0f / (float)len);
-            means[i] = m;
+            if (mLen[i] > 0)
+            {
+                NSHRgb m = NSHRgbMul(means[i], 1.0f / (float)mLen[i]);
+                means[i] = m;
+            }
+            else
+            {
+                means[i] = pm;
+            }
         }
         int changes = 0;
         for (size_t i = 0; i < dataSize; i++)
@@ -517,7 +562,7 @@ extern bool NSHPaletteSaturate(NSHRgb *palette, size_t paletteSize)
     }
     if (maxSat > minSat)
     {
-		ks = 1.0f / (maxSat - minSat);
+        ks = 1.0f / (maxSat - minSat);
         for (size_t i = 0; i < paletteSize; i++)
         {
             NSHRgb hsv = ColorRgbToHsv(palette[i]);
@@ -544,7 +589,7 @@ extern bool NSHPaletteNorm(NSHRgb *palette, size_t paletteSize)
     }
     if (maxVal > minVal)
     {
-		kv = 1.0f / (maxVal - minVal);
+        kv = 1.0f / (maxVal - minVal);
         for (size_t i = 0; i < paletteSize; i++)
         {
             NSHRgb hsv = ColorRgbToHsv(palette[i]);
