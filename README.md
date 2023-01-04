@@ -8,13 +8,13 @@ Convert scans of handwritten notes to beautiful.
 
 ## Usage
 
-```sh
+```shell
 ./noteshrink IMAGE_IN IMAGE_OUT.png
 ```
 
 ## Build
 
-```sh
+```shell
 mkdir build
 cd build
 cmake ..
@@ -23,9 +23,22 @@ make
 
 ## Demo
 
-```sh
-./noteshrink -n 8 images/test.jpg images/testout.png
-optipng images/testout.png
+```shell
+./noteshrink -n 8 ../images/test.jpg ../images/testout.png
+Palette:
+0: #e6e6b6
+1: #d44e4f
+2: #90907f
+3: #42423f
+4: #619c83
+5: #438a73
+6: #636458
+7: #e78178
+Save png: ../images/testout.png
+done
+```
+```shell
+optipng -q ../images/testout.png
 ```
 
 `images/test.jpg`:  

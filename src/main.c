@@ -149,7 +149,7 @@ int main(int argc, char **argv)
                 img[i++] = p;
             }
         }
-        free(pixels);
+        stbi_image_free(pixels);
 
         NSHRgb* palette = NULL;
         if (!(palette = (NSHRgb*)malloc(o.NumColors * sizeof(NSHRgb))))
@@ -223,15 +223,13 @@ int main(int argc, char **argv)
                 data[idx + 2] = (uint8_t)p.B;
             }
         }
+        if (!fquiet) printf("Save png: %s\n", fileout);
         if (!(stbi_write_png(fileout, width, height, numberOfChannels, data, width * numberOfChannels)))
         {
             fprintf(stderr, "ERROR: not write image: %s\n", fileout);
             return 5;
         }
-        if (!fquiet)
-        {
-            printf("done\n");
-        }
+        if (!fquiet) printf("done\n");
         free(data);
         free(result);
         free(palette);

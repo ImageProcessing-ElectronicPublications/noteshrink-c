@@ -477,7 +477,7 @@ static bool NSHPaletteGenerate(NSHRgb *samples, size_t samplesSize, NSHRgb bgCol
     return true;
 }
 
-extern NSHOption NSHMakeDefaultOption()
+NOTESHRINKAPI NSHOption NSHMakeDefaultOption()
 {
     NSHOption o;
     o.SampleFraction = 0.05f;
@@ -492,7 +492,7 @@ extern NSHOption NSHMakeDefaultOption()
     return o;
 }
 
-extern bool NSHPaletteCreate(NSHRgb* input, size_t inputSize, NSHOption option, NSHRgb* palette, size_t paletteSize)
+NOTESHRINKAPI bool NSHPaletteCreate(NSHRgb* input, size_t inputSize, NSHOption option, NSHRgb* palette, size_t paletteSize)
 {
     if (!input || !palette)
     {
@@ -521,7 +521,7 @@ extern bool NSHPaletteCreate(NSHRgb* input, size_t inputSize, NSHOption option, 
     return true;
 }
 
-extern bool NSHPaletteApply(NSHRgb* img, size_t imgSize, NSHRgb* palette, size_t paletteSize, int width, int height, NSHOption option, uint8_t *result)
+NOTESHRINKAPI bool NSHPaletteApply(NSHRgb* img, size_t imgSize, NSHRgb* palette, size_t paletteSize, int width, int height, NSHOption option, uint8_t *result)
 {
     bool* fgMask = NULL;
     if (!(fgMask = (bool*)malloc(imgSize * sizeof(bool))))
@@ -549,7 +549,7 @@ extern bool NSHPaletteApply(NSHRgb* img, size_t imgSize, NSHRgb* palette, size_t
     return true;
 }
 
-extern bool NSHPaletteSaturate(NSHRgb *palette, size_t paletteSize)
+NOTESHRINKAPI bool NSHPaletteSaturate(NSHRgb *palette, size_t paletteSize)
 {
     float maxSat = 0.0f, minSat = 1.0f, ks = 1.0f;
 
@@ -576,7 +576,7 @@ extern bool NSHPaletteSaturate(NSHRgb *palette, size_t paletteSize)
     return true;
 }
 
-extern bool NSHPaletteNorm(NSHRgb *palette, size_t paletteSize)
+NOTESHRINKAPI bool NSHPaletteNorm(NSHRgb *palette, size_t paletteSize)
 {
     float maxVal = 0.0f, minVal = 1.0f, kv = 1.0f;
 

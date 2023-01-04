@@ -1,10 +1,12 @@
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 2.8)
 project(noteshrink-c LANGUAGES C)
 
-include_directories(include src/ext)
+include_directories(include include src/ext)
 
-file(GLOB source_files include/*.h
-                       src/*.c
-                       CMakeLists.txt)
+set(source_files
+    src/dependencies.c
+    src/noteshrink.c
+    src/main.c
+)
 add_executable(noteshrink ${source_files})
 target_link_libraries(noteshrink m)

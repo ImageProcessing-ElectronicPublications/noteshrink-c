@@ -7,11 +7,17 @@
 
 #ifndef __NOTESHRINK_H
 #define __NOTESHRINK_H
-#define NOTESHRINK_VERSION "2.2"
+#define NOTESHRINK_VERSION "2.3"
+
+#ifdef NOTESHRINK_STATIC
+#define NOTESHRINKAPI static
+#else
+#define NOTESHRINKAPI extern
+#endif
 
 #ifdef __cplusplus
 extern "C" {
-#endif // __cplusplus
+#endif
 
 typedef struct {
     float R; // [0, 255]
@@ -31,18 +37,14 @@ typedef struct {
     bool WhiteBackground;
 } NSHOption;
 
-extern NSHOption NSHMakeDefaultOption();
-
-extern bool NSHPaletteCreate(NSHRgb* input, size_t inputSize, NSHOption option, NSHRgb* palette, size_t paletteSize);
-
-extern bool NSHPaletteApply(NSHRgb* img, size_t imgSize, NSHRgb* palette, size_t paletteSize, int width, int height, NSHOption option, uint8_t *result);
-
-extern bool NSHPaletteSaturate(NSHRgb *palette, size_t paletteSize);
-
-extern bool NSHPaletteNorm(NSHRgb *palette, size_t paletteSize);
+NOTESHRINKAPI NSHOption NSHMakeDefaultOption();
+NOTESHRINKAPI bool NSHPaletteCreate(NSHRgb* input, size_t inputSize, NSHOption option, NSHRgb* palette, size_t paletteSize);
+NOTESHRINKAPI bool NSHPaletteApply(NSHRgb* img, size_t imgSize, NSHRgb* palette, size_t paletteSize, int width, int height, NSHOption option, uint8_t *result);
+NOTESHRINKAPI bool NSHPaletteSaturate(NSHRgb *palette, size_t paletteSize);
+NOTESHRINKAPI bool NSHPaletteNorm(NSHRgb *palette, size_t paletteSize);
 
 #ifdef __cplusplus
-} // extern "C"
-#endif // _\cplusplus
+}
+#endif
 
 #endif /* __NOTESHRINK_H */
