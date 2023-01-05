@@ -24,16 +24,14 @@ make
 ## Demo
 
 ```shell
-./noteshrink -n 8 ../images/test.jpg ../images/testout.png
+./noteshrink ../images/test.jpg ../images/testout.png
 Palette:
 0: #e6e6b6
-1: #d44e4f
-2: #90907f
-3: #42423f
-4: #619c83
-5: #438a73
-6: #636458
-7: #e78178
+1: #e78178
+2: #838575
+3: #4f927a
+4: #444541
+5: #d44e4f
 Save png: ../images/testout.png
 done
 ```

@@ -260,19 +260,9 @@ static bool ImageKMeans(NSHRgb* data, size_t dataSize, NSHRgb* means, int k, int
     {
         return false;
     }
-    for (int i = 0; i < k; i++)
-    {
-        mLen[i] = (int)(dataSize / k);
-    }
     for (int itr = 0; itr < maxItr; itr++)
     {
         NSHRgb pm;
-        for (int i = 0; i < k; i++)
-        {
-            NSHRgb p = NSHRgbMul(means[i], (float)mLen[i]);
-            pm = NSHRgbAdd(pm, p);
-        }
-        pm = NSHRgbMul(pm, 1.0f / (float)dataSize);
         for (int i = 0; i < k; i++)
         {
             NSHRgb p;
@@ -288,6 +278,7 @@ static bool ImageKMeans(NSHRgb* data, size_t dataSize, NSHRgb* means, int k, int
             means[cluster] = m;
             mLen[cluster] = mLen[cluster] + 1;
         }
+        int changes = 0;
         for (int i = 0; i < k; i++)
         {
             if (mLen[i] > 0)
@@ -297,10 +288,23 @@ static bool ImageKMeans(NSHRgb* data, size_t dataSize, NSHRgb* means, int k, int
             }
             else
             {
-                means[i] = pm;
+                NSHRgb pm, p;
+                float h = ((float)i + 0.5f) / (float)k;
+                p.R = h;
+                p.G = 1.0f;
+                p.B = 1.0f;
+                p = ColorHsvToRgb(p);
+                size_t l = NSHRgbClosest(p, means, k);
+                float fk = 1.0f / (float)k;
+                pm = NSHRgbMul(means[l], 1.0f - fk);
+                p = NSHRgbMul(p, fk);
+                p = NSHRgbAdd(p, pm);
+                l = NSHRgbClosest(p, data, dataSize);
+                p = data[l];
+                means[i] = p;
+                changes++;
             }
         }
-        int changes = 0;
         for (size_t i = 0; i < dataSize; i++)
         {
             NSHRgb p = data[i];

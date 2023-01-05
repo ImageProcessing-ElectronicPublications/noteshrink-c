@@ -136,17 +136,18 @@ int main(int argc, char **argv)
             return 4;
         }
 
-        size_t i = 0;
+        size_t i = 0, idx = 0;
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
             {
-                size_t idx = (height - y - 1) * width * 4 + x * 4;
                 NSHRgb p;
                 p.R = pixels[idx];
                 p.G = pixels[idx + 1];
                 p.B = pixels[idx + 2];
-                img[i++] = p;
+                img[i] = p;
+                idx += STBI_rgb_alpha;
+                i++;
             }
         }
         stbi_image_free(pixels);
@@ -212,15 +213,17 @@ int main(int argc, char **argv)
         }
 
         i = 0;
+        idx = 0;
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
             {
-                size_t idx = (height - y - 1) * width * numberOfChannels + x * numberOfChannels;
-                NSHRgb p = palette[result[i++]];
+                NSHRgb p = palette[result[i]];
                 data[idx] = (uint8_t)p.R;
                 data[idx + 1] = (uint8_t)p.G;
                 data[idx + 2] = (uint8_t)p.B;
+                idx += numberOfChannels;
+                i++;
             }
         }
         if (!fquiet) printf("Save png: %s\n", fileout);

@@ -7,7 +7,7 @@
 
 #ifndef __NOTESHRINK_H
 #define __NOTESHRINK_H
-#define NOTESHRINK_VERSION "2.3"
+#define NOTESHRINK_VERSION "2.4"
 
 #ifdef NOTESHRINK_STATIC
 #define NOTESHRINKAPI static
