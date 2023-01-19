@@ -232,16 +232,18 @@ static void ImageQuantize(unsigned char *img, size_t imageSize, int channels, in
 static bool ImageKMeans(unsigned char *data, size_t dataSize, int channels, float* means, int k, int maxItr)
 {
     int pChannels, mChannels, d, itr, cluster, changes;
-    float h, p[3], pm[3], pd[3], fk;
+    float h, p[3], fk, fksq;
     size_t i, l, n;
     int *clusters = NULL;
     int *mLen = NULL;
 
+    fk = (k > 0) ? (1.0f / (float)k) : 0.0f;
+    fksq = sqrt(fk);
     pChannels = 3;
     mChannels = (channels < pChannels) ? channels : pChannels;
     for (i = 0; i < k; i++)
     {
-        h = ((float)i + 0.5f) / (float)k;
+        h = ((float)i + 0.5f) * fk;
         p[0] = h;
         p[1] = 1.0f;
         p[2] = 1.0f;
@@ -262,9 +264,9 @@ static bool ImageKMeans(unsigned char *data, size_t dataSize, int channels, floa
     {
         for (d = 0; d < mChannels; d++)
         {
-            pd[d] = data[n + d];
+            p[d] = data[n + d];
         }
-        clusters[i] = NSHClosest(pd, means, k, channels);
+        clusters[i] = NSHClosest(p, means, k, channels);
         n += channels;
     }
 
@@ -308,24 +310,23 @@ static bool ImageKMeans(unsigned char *data, size_t dataSize, int channels, floa
             }
             else
             {
-                h = ((float)i + 0.5f) / (float)k;
+                h = ((float)i + 0.5f) * fk;
                 p[0] = h;
                 p[1] = 1.0f;
                 p[2] = 1.0f;
                 ColorHsvToRgb(p);
                 l = NSHClosest(p, means, k, channels);
-                fk = 1.0f / (float)k;
                 for (d = 0; d < mChannels; d++)
                 {
-                    pm[d] = means[l * channels + d] / (1.0f - fk);
-                    p[d] *= fk;
-                    p[d] += pm[d];
+                    p[d] *= fksq;
+                    p[d] += (means[l * channels + d] * (1.0f - fksq));
                 }
                 l = NSHClosestD(p, data, dataSize, channels);
                 for (d = 0; d < mChannels; d++)
                 {
                     means[n + d] += (float)data[l * channels + d];
                 }
+                mLen[i] = 1;
                 changes++;
             }
             n += channels;

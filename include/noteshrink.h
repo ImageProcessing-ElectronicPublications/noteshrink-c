@@ -4,10 +4,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <math.h>
 
 #ifndef __NOTESHRINK_H
 #define __NOTESHRINK_H
-#define NOTESHRINK_VERSION "2.5"
+#define NOTESHRINK_VERSION "2.6"
 
 #ifdef NOTESHRINK_STATIC
 #define NOTESHRINKAPI static
