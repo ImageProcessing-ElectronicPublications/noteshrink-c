@@ -229,12 +229,12 @@ static void ImageQuantize(unsigned char *img, size_t imageSize, int channels, in
     }
 }
 
-static bool ImageKMeans(unsigned char *data, size_t dataSize, int channels, float* means, int k, int maxItr)
+static bool ImageKMeans(unsigned char *data, size_t dataSize, int channels, float* means, size_t k, int maxItr)
 {
-    int pChannels, mChannels, d, itr, cluster, changes;
+    int pChannels, mChannels, d, itr, changes;
     float h, p[3], fk, fksq;
     size_t i, l, n;
-    int *clusters = NULL;
+    size_t *clusters = NULL, cluster;
     int *mLen = NULL;
 
     fk = (k > 0) ? (1.0f / (float)k) : 0.0f;
@@ -255,7 +255,7 @@ static bool ImageKMeans(unsigned char *data, size_t dataSize, int channels, floa
         }
     }
 
-    if (!(clusters = (int*)malloc(dataSize * sizeof(int))))
+    if (!(clusters = (size_t*)malloc(dataSize * sizeof(size_t))))
     {
         return false;
     }
@@ -272,6 +272,8 @@ static bool ImageKMeans(unsigned char *data, size_t dataSize, int channels, floa
 
     if (!(mLen = (int*)malloc(k * sizeof(int))))
     {
+        free(clusters);
+
         return false;
     }
     for (itr = 0; itr < maxItr; itr++)
@@ -414,7 +416,7 @@ static bool BGColorFind(unsigned char *image, size_t imageSize, int channels, fl
     return true;
 }
 
-static void FGMaskCreate(unsigned char *samples, size_t samplesSize, int channels, float *palette, int paletteSize, NSHOption option, bool *mask)
+static void FGMaskCreate(unsigned char *samples, size_t samplesSize, int channels, float *palette, size_t paletteSize, NSHOption option, bool *mask)
 {
     int d, mChannels;
     float bghsv[3], hsv[3], sd, vd;
@@ -613,9 +615,9 @@ NOTESHRINKAPI bool NSHPaletteCreate(unsigned char *img, int height, int width, i
 
 NOTESHRINKAPI bool NSHPaletteApply(unsigned char *img, int height, int width, int channels, float *palette, int paletteSize, NSHOption option, unsigned char *result)
 {
-    int d,  mChannels, minIdx;
+    int d,  mChannels;
     float p[3];
-    size_t i, k, imgSize;
+    size_t i, k, imgSize, minIdx;
     bool* fgMask = NULL;
 
     imgSize = height * width;

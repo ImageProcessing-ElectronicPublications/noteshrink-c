@@ -34,7 +34,7 @@ int main(int argc, char **argv)
     stbi_uc *img = NULL;
 
     int MinInt = 2;
-    float MinFloat = 0.001;
+    float MinFloat = 0.001f;
     NSHOption o = NSHMakeDefaultOption();
     int fquiet = 0;
     int fhelp = 0;
@@ -62,7 +62,7 @@ int main(int argc, char **argv)
             }
             break;
         case 'p':
-            o.SampleFraction = atof(optarg);
+            o.SampleFraction = (float)atof(optarg);
             if (o.SampleFraction < MinFloat)
             {
                 fprintf(stderr, "ERROR: p NUM = %f < %f", o.SampleFraction, MinFloat);
@@ -81,7 +81,7 @@ int main(int argc, char **argv)
             }
             break;
         case 's':
-            o.SaturationThreshold = atof(optarg);
+            o.SaturationThreshold = (float)atof(optarg);
             if (o.SaturationThreshold < MinFloat)
             {
                 fprintf(stderr, "ERROR: s NUM = %f < %f", o.SaturationThreshold, MinFloat);
@@ -89,7 +89,7 @@ int main(int argc, char **argv)
             }
             break;
         case 'v':
-            o.BrightnessThreshold = atof(optarg);
+            o.BrightnessThreshold = (float)atof(optarg);
             if (o.BrightnessThreshold < MinFloat)
             {
                 fprintf(stderr, "ERROR: v NUM = %f < %f", o.BrightnessThreshold, MinFloat);
@@ -198,7 +198,7 @@ int main(int argc, char **argv)
         kd = 0;
         for (ki = 0; ki < o.NumColors; ki++)
         {
-            printf("%d: #", ki);
+            printf("%u: #", (unsigned int)ki);
             for (d = 0; d < channels; d++)
             {
                 printf("%02x", (unsigned char)palette[kd]);
