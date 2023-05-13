@@ -1,3 +1,6 @@
 [submodule "src/ext/stb"]
 	path = src/ext/stb
 	url = https://github.com/nothings/stb.git
+[submodule "src/ext/win-c"]
+	path = src/ext/win-c
+	url = https://github.com/takamin/win-c.git

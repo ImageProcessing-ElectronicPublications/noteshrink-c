@@ -1,4 +1,8 @@
+#if defined(_MSC_VER)
+#include <getopt.h>
+#else
 #include <unistd.h>
+#endif
 #include <stb/stb_image.h>
 #include <stb/stb_image_write.h>
 #include "noteshrink.h"
